@@ -120,4 +120,6 @@ if unknown:
             st.write(f"- **{s['id']}** — stato: {s.get('status', '?')}")
 
 st.markdown("---")
+data_freshness_note()
+
 st.caption("Fonte: source-observatory/data/radar/radar_summary.json · probe giornaliero automatico")

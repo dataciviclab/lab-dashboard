@@ -1,7 +1,7 @@
 """Vista d'insieme — metriche aggregate."""
 import streamlit as st
 import pandas as pd
-from sources import load_catalog, load_signals, render_sidebar_common
+from sources import load_catalog, load_signals, render_sidebar_common, data_freshness_note
 render_sidebar_common()
 
 st.title("Vista d'insieme")
@@ -60,3 +60,5 @@ if theme_counts:
         for t, c in sorted(theme_counts.items(), key=lambda x: -x[1])
     ])
     st.bar_chart(theme_df.set_index("tema"))
+
+data_freshness_note()

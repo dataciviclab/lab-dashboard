@@ -1,63 +1,63 @@
-"""Copertura dati — matrice anni×dataset da parquet GCS."""
+"""Copertura dati — anni disponibili per dataset, letti dal catalogo."""
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_catalog, duckdb_query, render_sidebar_common
+from sources import load_catalog, render_sidebar_common, data_freshness_note
+
 render_sidebar_common()
 
 st.title("Copertura dati")
 
+st.markdown(
+    "Anni disponibili per ogni dataset, letti dal catalogo. "
+    "I periodi sono estratti da `clean_catalog.json`."
+)
+
 catalog = load_catalog()
 datasets = catalog.get("datasets", [])
 
-st.markdown("Record per dataset/anno letti live dai parquet su GCS via DuckDB.")
+# Costruisci matrice copertura dal catalogo
+rows = []
+for ds in datasets:
+    slug = ds.get("slug", "")
+    period = ds.get("period", {})
+    start = period.get("start")
+    end = period.get("end")
+    stage = ds.get("stage", "?")
+    if start and end:
+        for y in range(start, end + 1):
+            rows.append({"dataset": slug, "stage": stage, "anno": y})
+    else:
+        rows.append({"dataset": slug, "stage": stage, "anno": "?"})
 
-YEARS = list(range(2019, 2026))
+cov_df = pd.DataFrame(rows)
 
-if st.button("Carica copertura live da GCS"):
-    with st.spinner("Caricamento dati da GCS..."):
-        rows = []
-        for ds in datasets[:15]:
-            slug = ds.get("slug", "")
-            for y in YEARS:
-                path = (
-                    f"https://storage.googleapis.com/dataciviclab-clean/"
-                    f"{slug}/{y}/{slug}_{y}_clean.parquet"
-                )
-                try:
-                    df = duckdb_query(
-                        f"SELECT '{slug}' AS dataset, {y} AS anno, "
-                        f"COUNT(*) AS records FROM read_parquet('{path}')"
-                    )
-                    rows.append(df)
-                except Exception:
-                    pass
+if not cov_df.empty:
+    # Pivot: dataset × anno
+    pivot = cov_df.pivot_table(
+        index="dataset", columns="anno", values="stage", aggfunc="first"
+    ).fillna("")
 
-        if rows:
-            cov_df = pd.concat(rows, ignore_index=True)
-            cov_pivot = cov_df.pivot_table(
-                index="dataset", columns="anno", values="records", aggfunc="sum"
-            ).fillna(0).astype(int)
-            cov_pivot = cov_pivot.replace(0, pd.NA)
+    st.subheader("Matrice copertura (dal catalogo)")
+    st.dataframe(pivot, use_container_width=True)
 
-            st.subheader("Matrice copertura")
-            st.dataframe(cov_pivot, width="stretch")
+    # Conteggio dataset per anno
+    st.subheader("Dataset per anno")
+    per_year = cov_df[cov_df["anno"] != "?"].groupby("anno").size().reset_index(name="dataset")
+    chart = alt.Chart(per_year).mark_bar().encode(
+        x=alt.X("anno:O", title="Anno"),
+        y=alt.Y("dataset:Q", title="Dataset"),
+        tooltip=["anno", "dataset"],
+    ).properties(height=350)
+    st.altair_chart(chart, use_container_width=True)
 
-            st.subheader("Record totali per dataset")
-            totals = cov_df.groupby("dataset")["records"].sum().reset_index()
-            chart = alt.Chart(totals).mark_bar().encode(
-                x=alt.X("dataset:N", title="Dataset", sort="-y"),
-                y=alt.Y("records:Q", title="Record totali"),
-                color=alt.Color("dataset:N", legend=None),
-                tooltip=["dataset", "records"],
-            ).properties(height=400)
-            st.altair_chart(chart, width="stretch")
-
-            st.caption(f"Totale record: {cov_df['records'].sum():,}")
-        else:
-            st.info("Nessun dato caricato. Possibili errori di connessione a GCS.")
-else:
+    # Stat
+    max_year = cov_df[cov_df["anno"] != "?"]["anno"].max()
     st.info(
-        "Premi 'Carica copertura live da GCS' per leggere i parquet "
-        "con DuckDB. Richiede ~10-20 secondi per 15 dataset."
+        f"📊 **{len(datasets)}** dataset · copertura **{max_year}** anni · "
+        f"media **{cov_df[cov_df['anno'] != '?'].groupby('dataset').size().mean():.1f}** anni/dataset"
     )
+else:
+    st.warning("Nessun dato di copertura disponibile dal catalogo.")
+
+data_freshness_note()

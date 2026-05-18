@@ -2,7 +2,7 @@
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_signals, render_sidebar_common
+from sources import load_signals, render_sidebar_common, data_freshness_note
 render_sidebar_common()
 
 st.title("Pipeline Health")
@@ -50,3 +50,5 @@ with col_b:
             sig.get("status", ""), "❓"
         )
         st.write(f"{emoji} **{sig.get('label', '?')}** — {sig.get('detail', '')}")
+
+data_freshness_note()

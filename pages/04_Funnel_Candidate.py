@@ -7,7 +7,7 @@ con tassi di conversione tra stadi e dettaglio per ogni fase.
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_catalog, load_signals, load_sources_registry, load_radar, render_sidebar_common
+from sources import load_catalog, load_signals, load_sources_registry, load_radar, render_sidebar_common, data_freshness_note
 render_sidebar_common()
 
 st.title("Funnel candidate")
@@ -15,7 +15,8 @@ st.title("Funnel candidate")
 st.markdown(
     "Flusso end-to-end dei dataset nel Lab: dalla scoperta della fonte "
     "alla pubblicazione nell'Explorer. "
-    "Le barre mostrano quanti elementi passano a ogni stadio."
+    "Ogni stadio è indipendente — un dataset può entrare in validazione "
+    "anche senza passare dall'intake (es. support datasets)."
 )
 
 # ── Carica tutti i dati ───────────────────────────────────────────────────────
@@ -89,16 +90,14 @@ n_intake = len(intake_candidates)
 n_validation = len(validation_datasets)
 n_published = len(published_datasets)
 
-# Tassi di conversione
-intake_rate = round(n_intake / n_scouting * 100) if n_scouting else 0
-validation_rate = round(n_validation / max(n_intake, 1) * 100)
-publish_rate = round(n_published / max(n_validation, 1) * 100)
+src_to_intake = round(n_intake / n_scouting * 100) if n_scouting else 0
+val_to_pub = round(n_published / max(n_validation, 1) * 100)
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("🔭 Scouting", n_scouting)
-col2.metric("📥 Intake", n_intake, f"{intake_rate}% dello scouting")
-col3.metric("🔬 Validazione", n_validation, f"{validation_rate}% intake → val.")
-col4.metric("✅ Pubblicati", n_published, f"{publish_rate}% val. → pub.")
+col2.metric("📥 Intake", n_intake, f"{src_to_intake}% delle fonti")
+col3.metric("🔬 Validazione", n_validation)
+col4.metric("✅ Pubblicati", n_published, f"{val_to_pub}% dei validati")
 
 # ── Funnel visuale (barre proporzionali) ──────────────────────────────────────
 st.markdown("---")
@@ -135,38 +134,11 @@ for label, count, color in stages_info:
         st.markdown(bar_html, unsafe_allow_html=True)
 
 st.markdown("---")
-
-# ── Tassi di conversione tra stadi ───────────────────────────────────────────
-st.subheader("Tassi di conversione")
-
-conv_df = pd.DataFrame([
-    ("🔭 → 📥", "Scouting → Intake", intake_rate),
-    ("📥 → 🔬", "Intake → Validazione", validation_rate),
-    ("🔬 → ✅", "Validazione → Pubblicati", publish_rate),
-], columns=["flusso", "descrizione", "percentuale"])
-
-chart = alt.Chart(conv_df).mark_bar(cornerRadiusTopLeft=5, cornerRadiusBottomLeft=5).encode(
-    x=alt.X("percentuale:Q", title="Tasso di conversione (%)", scale=alt.Scale(domain=[0, 100])),
-    y=alt.Y("descrizione:N", title=None, sort="-x"),
-    color=alt.Color("percentuale:Q", scale=alt.Scale(scheme="blues"), legend=None),
-    tooltip=["flusso", "percentuale"],
-).properties(height=150)
-
-st.altair_chart(chart, width="stretch")
-
-# Insight testuale
-if validation_rate < 50:
-    st.info(
-        f"📌 **Collo di bottiglia**: solo il {validation_rate}% dei candidate "
-        "in intake arriva alla validazione. Verifica i candidate fermi in pipeline."
-    )
-elif publish_rate < 50:
-    st.info(
-        f"📌 **Collo di bottiglia**: solo il {publish_rate}% dei dataset "
-        "validati viene pubblicato nell'Explorer."
-    )
-else:
-    st.success("✅ Il funnel è bilanciato — nessun collo di bottiglia evidente.")
+st.caption(
+    "ℹ️ Gli stadi non sono una sequenza lineare stretta — "
+    "alcuni dataset in validazione arrivano da support datasets "
+    "che non passano dall'intake."
+)
 
 st.markdown("---")
 
@@ -224,3 +196,4 @@ st.caption(
     "Dati incrociati da: source-observatory (radar/registry) → "
     "dataset-incubator (pipeline_signals + clean_catalog)"
 )
+data_freshness_note()
