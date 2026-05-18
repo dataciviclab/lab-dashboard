@@ -77,7 +77,7 @@ for ds in datasets:
         "name": ds.get("name", ""),
         "source_id": ds.get("source_id", "?"),
         "description": ds.get("description", "")[:120],
-        "updated_at": ds.get("updated_at", "?"),
+        "source_desc": ds.get("source", ""),
     }
     if stage == "published":
         published_datasets.append(item)
@@ -187,9 +187,11 @@ with tab3:
 with tab4:
     st.caption("Clean parquet su GCS + pagina in Explorer")
     for ds in published_datasets:
-        with st.expander(f"✅ **{ds['slug']}** — fonte: {ds['source_id']}"):
-            st.write(f"**Nome:** {ds['name']}")
-            st.write(f"**Descrizione:** {ds['description']}")
+        with st.expander(f"✅ **{ds['slug']}** — fonte: {ds.get('source_id', '?')}"):
+            st.write(f"**Nome:** {ds.get('name', '?')}")
+            st.write(f"**Descrizione:** {ds.get('description', '?')}")
+            if ds.get("source_desc"):
+                st.write(f"**Fonte descrizione:** {ds['source_desc']}")
 
 st.markdown("---")
 st.caption(

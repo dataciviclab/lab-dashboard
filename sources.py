@@ -1,16 +1,17 @@
 """
 Fonti dati condivise per il dashboard.
-Legge da GitHub raw (metadati) e GCS parquet via DuckDB (dati vivi).
+Legge da GitHub raw (metadati) e, opzionalmente, GCS parquet via DuckDB.
 
-Tutte le fetch hanno try/except: se GitHub è giù, il dashboard non crasha
-ma mostra un messaggio "dati non disponibili".
+Data layer puro: non chiama mai st.*. Le eccezioni vengono propagate
+ai chiamanti che decidono come mostrare l'errore.
 """
 import io
 from datetime import datetime, timezone
+from typing import Any, Optional
 
-import requests
 import duckdb
 import pandas as pd
+import requests
 import streamlit as st
 import yaml
 
@@ -21,14 +22,10 @@ SO_BASE = "https://raw.githubusercontent.com/dataciviclab/source-observatory/mai
 GCS_BASE = "https://storage.googleapis.com/dataciviclab-clean"
 
 
-# ── Sidebar comune ────────────────────────────────────────────────────────────────
+# ── Sidebar comune (UI) ───────────────────────────────────────────────────────────
 def render_sidebar_common():
-    """Widget sidebar comuni a tutte le pagine.
-    Include logo, auto-refresh, hint tema e footer.
-    """
-    # Logo — richiamato su ogni pagina per garantirne la visibilità
+    """Widget sidebar comuni a tutte le pagine."""
     st.logo(LOGO_URL, size="large")
-
     refresh = st.sidebar.toggle(
         "🔄 Ricarica 60s",
         value=st.session_state.get("autorefresh", False),
@@ -49,94 +46,91 @@ def render_sidebar_common():
     )
 
 
-# ── Fetch con error handling ───────────────────────────────────────────────────────
-_LAST_FETCH = {}  # tracciamento freschezza dati
+# ── Data fetching (puro, no st.*) ─────────────────────────────────────────────────
+_LAST_FETCH: dict[str, datetime] = {}
 
 
-def _fetch_json(url, label="dati"):
-    """Fetch JSON con fallimento gracevole."""
-    try:
-        r = requests.get(url, timeout=15)
-        r.raise_for_status()
-        _LAST_FETCH[url] = datetime.now(timezone.utc)
-        return r.json()
-    except requests.RequestException as e:
-        st.error(f"❌ **{label}** non disponibile: {e}")
-        return {}
+def _fetch_json(url: str) -> Any:
+    """Fetch JSON. Solleva eccezioni — la UI gestisce l'errore."""
+    r = requests.get(url, timeout=15)
+    r.raise_for_status()
+    _LAST_FETCH[url] = datetime.now(timezone.utc)
+    return r.json()
 
 
-def _fetch_yaml(url, label="dati"):
-    """Fetch YAML con fallimento gracevole."""
-    try:
-        r = requests.get(url, timeout=15)
-        r.raise_for_status()
-        _LAST_FETCH[url] = datetime.now(timezone.utc)
-        return yaml.safe_load(r.text) or {}
-    except requests.RequestException as e:
-        st.error(f"❌ **{label}** non disponibile: {e}")
-        return {}
+def _fetch_yaml(url: str) -> dict:
+    """Fetch YAML. Solleva eccezioni — la UI gestisce l'errore."""
+    r = requests.get(url, timeout=15)
+    r.raise_for_status()
+    _LAST_FETCH[url] = datetime.now(timezone.utc)
+    return yaml.safe_load(r.text) or {}
 
 
-# ── Caricatori specifici con cache ────────────────────────────────────────────────
+# ── Caricatori con cache e decorator safe — la UI riceve fallback silenzioso ──────
+def _safe(fn):
+    """Wrapper: cattura eccezioni e restituisce valore di fallimento."""
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except requests.RequestException as e:
+            st.error(f"❌ **{fn.__name__}**: {e}")
+            return {}
+        except Exception as e:
+            st.error(f"❌ **{fn.__name__}**: errore imprevisto — {e}")
+            return {}
+    return wrapper
+
+
 @st.cache_data(ttl=120, show_spinner=False)
+@_safe
 def load_catalog():
-    return _fetch_json(f"{REGISTRY_BASE}/clean_catalog.json", "Catalogo dataset")
+    return _fetch_json(f"{REGISTRY_BASE}/clean_catalog.json")
 
 
 @st.cache_data(ttl=120, show_spinner=False)
+@_safe
 def load_signals():
-    return _fetch_json(f"{REGISTRY_BASE}/pipeline_signals.json", "Segnali pipeline")
+    return _fetch_json(f"{REGISTRY_BASE}/pipeline_signals.json")
 
 
 @st.cache_data(ttl=120, show_spinner=False)
+@_safe
 def load_radar():
-    return _fetch_json(f"{SO_BASE}/data/radar/radar_summary.json", "Radar fonti")
+    return _fetch_json(f"{SO_BASE}/data/radar/radar_summary.json")
 
 
 @st.cache_data(ttl=120, show_spinner=False)
+@_safe
 def load_sources_registry():
-    return _fetch_yaml(f"{SO_BASE}/data/radar/sources_registry.yaml", "Registro fonti")
+    return _fetch_yaml(f"{SO_BASE}/data/radar/sources_registry.yaml")
 
 
-def last_fetch_time():
-    """Ritorna il timestamp del fetch più recente, o None."""
+def last_fetch_time() -> Optional[datetime]:
     if not _LAST_FETCH:
         return None
     return max(_LAST_FETCH.values())
 
 
 def data_freshness_note():
-    """Stampa una nota 'dati aggiornati al ...'."""
+    """Mostra nota 'dati caricati al ...' nella pagina chiamante."""
     t = last_fetch_time()
     if t:
         st.caption(f"📡 Dati caricati: {t.strftime('%d/%m/%Y %H:%M')} UTC")
-    else:
-        st.caption("📡 Dati non ancora caricati")
 
 
-# ── DuckDB ─────────────────────────────────────────────────────────────────────────
-@st.cache_data(ttl=300, show_spinner=False)
-def duckdb_query(sql):
-    try:
-        con = duckdb.connect()
-        return con.sql(sql).df()
-    except Exception as e:
-        st.error(f"❌ Errore query DuckDB: {e}")
-        return pd.DataFrame()
+# ── DuckDB (opzionale — attualmente usato solo per verifica spot) ────────────────
+def duckdb_query(sql: str) -> pd.DataFrame:
+    """Esegue SQL su DuckDB (in-memory). Solleva eccezioni."""
+    con = duckdb.connect()
+    return con.sql(sql).df()
 
 
-def get_dataset_years(slug: str):
+def verify_parquet(slug: str, year: int) -> dict:
     """
-    Ritorna la lista degli anni disponibili per un dataset.
-    Legge da catalog prima, poi prova GCS se serve.
+    Verifica se un parquet GCS esiste e ha dati.
+    Ritorna {'slug': ..., 'year': ..., 'records': N} o solleva eccezione.
     """
-    cat = load_catalog()
-    for ds in cat.get("datasets", []):
-        if ds["slug"] == slug:
-            yr = ds.get("period", {})
-            start = yr.get("start")
-            end = yr.get("end")
-            if start and end:
-                return list(range(start, end + 1))
-    # fallback: anni tipici
-    return list(range(2019, 2026))
+    path = f"{GCS_BASE}/{slug}/{year}/{slug}_{year}_clean.parquet"
+    df = duckdb_query(f"SELECT COUNT(*) AS records FROM read_parquet('{path}')")
+    records = int(df["records"].iloc[0])
+    return {"slug": slug, "year": year, "records": records}

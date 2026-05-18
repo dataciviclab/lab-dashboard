@@ -1,4 +1,4 @@
-"""Vista d'insieme — metriche aggregate."""
+"""Vista d'insieme — metriche aggregate da clean_catalog.json e pipeline_signals.json."""
 import streamlit as st
 import pandas as pd
 from sources import load_catalog, load_signals, render_sidebar_common, data_freshness_note
@@ -10,14 +10,18 @@ catalog = load_catalog()
 signals = load_signals()
 
 datasets = catalog.get("datasets", [])
-sigs = signals.get("signals", [])
 sig_summary = signals.get("summary", {})
+updated_at = catalog.get("updated_at", "?")
+
+n_ok = sig_summary.get("by_status", {}).get("ok", 0)
+n_warn = sig_summary.get("by_status", {}).get("warn", 0)
+n_err = sig_summary.get("by_status", {}).get("error", 0)
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Dataset", len(datasets))
-col2.metric("Pipeline OK", sig_summary.get("by_status", {}).get("ok", 0))
-col3.metric("Warning", sig_summary.get("by_status", {}).get("warn", 0))
-col4.metric("Errori", sig_summary.get("by_status", {}).get("error", 0))
+col2.metric("Pipeline OK", n_ok)
+col3.metric("Warning", n_warn)
+col4.metric("Errori", n_err)
 
 st.markdown("---")
 
@@ -35,30 +39,32 @@ stage_df = pd.DataFrame([
 col_a, col_b = st.columns(2)
 with col_a:
     st.subheader("Dataset per stage")
-    st.bar_chart(stage_df.set_index("stage"))
-    st.caption(f"Ultimo aggiornamento: {catalog.get('updated_at', '?')}")
+    if not stage_df.empty:
+        st.bar_chart(stage_df.set_index("stage"))
+    else:
+        st.info("Nessun dato stage disponibile.")
+    st.caption(f"Catalogo aggiornato: {updated_at}")
 
 with col_b:
-    st.subheader("Ultimi aggiornamenti")
-    recent = sorted(
-        datasets, key=lambda d: d.get("updated_at", ""), reverse=True
-    )[:10]
-    for ds in recent:
+    st.subheader("Ultimi 10 dataset")
+    for ds in datasets[:10]:
         st.write(f"- **{ds.get('slug', '?')}** · {ds.get('stage', '?')}")
 
 st.markdown("---")
 
-# Dataset per tema
-st.subheader("Dataset per tema")
-theme_counts = {}
+# Dataset per source_id
+st.subheader("Dataset per fonte")
+src_counts = {}
 for ds in datasets:
-    for t in ds.get("themes", []):
-        theme_counts[t] = theme_counts.get(t, 0) + 1
-if theme_counts:
-    theme_df = pd.DataFrame([
-        {"tema": t, "count": c}
-        for t, c in sorted(theme_counts.items(), key=lambda x: -x[1])
+    src = ds.get("source_id", "altre")
+    src_counts[src] = src_counts.get(src, 0) + 1
+if src_counts:
+    src_df = pd.DataFrame([
+        {"fonte": s, "dataset": c}
+        for s, c in sorted(src_counts.items(), key=lambda x: -x[1])
     ])
-    st.bar_chart(theme_df.set_index("tema"))
+    st.bar_chart(src_df.set_index("fonte"))
+else:
+    st.info("Nessun dato fonte disponibile.")
 
 data_freshness_note()
