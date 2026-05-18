@@ -12,6 +12,8 @@ from typing import Any, Optional
 import duckdb
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import streamlit as st
 import yaml
 
@@ -50,9 +52,18 @@ def render_sidebar_common():
 _LAST_FETCH: dict[str, datetime] = {}
 
 
+_HTTP = requests.Session()
+_HTTP.mount("https://", HTTPAdapter(
+    max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
+))
+_HTTP.mount("http://", HTTPAdapter(
+    max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
+))
+
+
 def _fetch_json(url: str) -> Any:
     """Fetch JSON. Solleva eccezioni — la UI gestisce l'errore."""
-    r = requests.get(url, timeout=15)
+    r = _HTTP.get(url, timeout=15)
     r.raise_for_status()
     _LAST_FETCH[url] = datetime.now(timezone.utc)
     return r.json()
@@ -60,14 +71,14 @@ def _fetch_json(url: str) -> Any:
 
 def _fetch_yaml(url: str) -> dict:
     """Fetch YAML. Solleva eccezioni — la UI gestisce l'errore."""
-    r = requests.get(url, timeout=15)
+    r = _HTTP.get(url, timeout=15)
     r.raise_for_status()
     _LAST_FETCH[url] = datetime.now(timezone.utc)
     return yaml.safe_load(r.text) or {}
 
 
 # ── Caricatori con cache — errori mostrati nella UI ──────────────────────────────
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_catalog():
     try:
         return _fetch_json(f"{REGISTRY_BASE}/clean_catalog.json")
@@ -76,7 +87,7 @@ def load_catalog():
         return {}
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_signals():
     try:
         return _fetch_json(f"{REGISTRY_BASE}/pipeline_signals.json")
@@ -85,7 +96,7 @@ def load_signals():
         return {}
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_radar():
     try:
         return _fetch_json(f"{SO_BASE}/data/radar/radar_summary.json")
@@ -94,7 +105,7 @@ def load_radar():
         return {}
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_sources_registry():
     try:
         return _fetch_yaml(f"{SO_BASE}/data/radar/sources_registry.yaml")
@@ -118,17 +129,19 @@ def data_freshness_note():
 
 # ── DuckDB (opzionale — attualmente usato solo per verifica spot) ────────────────
 def duckdb_query(sql: str) -> pd.DataFrame:
-    """Esegue SQL su DuckDB (in-memory). Solleva eccezioni."""
-    con = duckdb.connect()
-    return con.sql(sql).df()
+    """Esegue SQL su DuckDB (in-memory). Chiude la connessione al termine."""
+    with duckdb.connect() as con:
+        return con.sql(sql).df()
 
 
 def verify_parquet(slug: str, year: int) -> dict:
     """
     Verifica se un parquet GCS esiste e ha dati.
+    Usa parametri DuckDB, non f-string, per evitare SQL injection.
     Ritorna {'slug': ..., 'year': ..., 'records': N} o solleva eccezione.
     """
     path = f"{GCS_BASE}/{slug}/{year}/{slug}_{year}_clean.parquet"
-    df = duckdb_query(f"SELECT COUNT(*) AS records FROM read_parquet('{path}')")
+    with duckdb.connect() as con:
+        df = con.sql("SELECT COUNT(*) AS records FROM read_parquet(?)", params=[path]).df()
     records = int(df["records"].iloc[0])
     return {"slug": slug, "year": year, "records": records}
