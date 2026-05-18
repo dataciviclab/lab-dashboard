@@ -151,7 +151,7 @@ chart = alt.Chart(conv_df).mark_bar(cornerRadiusTopLeft=5, cornerRadiusBottomLef
     tooltip=["flusso", "percentuale"],
 ).properties(height=150)
 
-st.altair_chart(chart, use_container_width=True)
+st.altair_chart(chart, width="stretch")
 
 # Insight testuale
 if validation_rate < 50:

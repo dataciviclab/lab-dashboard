@@ -7,18 +7,16 @@ Avvio: streamlit run app.py
 """
 import streamlit as st
 
-import os
-
 st.set_page_config(
     page_title="DataCivicLab · Dashboard",
-    page_icon="https://raw.githubusercontent.com/dataciviclab/dataciviclab/main/assets/logo.svg",
+    page_icon="https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # Sidebar comune
 st.logo(
-    "https://raw.githubusercontent.com/dataciviclab/dataciviclab/main/assets/logo.svg",
+    "https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg",
     size="large",
 )
 st.sidebar.title("DataCivicLab")
@@ -33,28 +31,16 @@ if _refresh:
         unsafe_allow_html=True,
     )
 
-# Dark mode toggle
-_dark = st.sidebar.toggle("🌙 Dark mode", value=False, key="_darkmode")
-if _dark:
-    st.markdown("""
-        <style>
-        /* Forza dark mode app */
-        .stApp { background-color: #0e1117; }
-        .stApp header, .stApp footer { background-color: #0e1117 !important; }
-        /* Custom funnel bars in dark mode */
-        .funnel-bar-bg { background: #262730 !important; }
-        .funnel-bar-fill { color: #fff !important; }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-        <style>
-        .funnel-bar-bg { background: #f0f0f0 !important; }
-        .funnel-bar-fill { color: #fff !important; }
-        </style>
-    """, unsafe_allow_html=True)
+# CSS che si adatta automaticamente al tema nativo (sia light che dark)
+st.markdown("""
+<style>
+.funnel-bar-bg { background: var(--secondary-background-color); }
+.funnel-bar-fill { color: var(--text-color) !important; }
+</style>
+""", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
+st.sidebar.caption("🌙 **Tema**: ☰ menu → Settings → Theme")
 st.sidebar.markdown(
     "Dati: [dataset-incubator/registry]"
     "(https://github.com/dataciviclab/dataset-incubator/tree/main/registry) · "

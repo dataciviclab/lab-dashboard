@@ -40,7 +40,7 @@ if st.button("Carica copertura live da GCS"):
             cov_pivot = cov_pivot.replace(0, pd.NA)
 
             st.subheader("Matrice copertura")
-            st.dataframe(cov_pivot, use_container_width=True)
+            st.dataframe(cov_pivot, width="stretch")
 
             st.subheader("Record totali per dataset")
             totals = cov_df.groupby("dataset")["records"].sum().reset_index()
@@ -50,7 +50,7 @@ if st.button("Carica copertura live da GCS"):
                 color=alt.Color("dataset:N", legend=None),
                 tooltip=["dataset", "records"],
             ).properties(height=400)
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, width="stretch")
 
             st.caption(f"Totale record: {cov_df['records'].sum():,}")
         else:

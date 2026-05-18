@@ -68,7 +68,7 @@ with col_b:
         for p, c in sorted(protocol_counts.items(), key=lambda x: -x[1])
     ])
     st.subheader("Fonti per protocollo")
-    st.dataframe(proto_df, use_container_width=True, hide_index=True)
+    st.dataframe(proto_df, width="stretch", hide_index=True)
 
 st.markdown("---")
 
