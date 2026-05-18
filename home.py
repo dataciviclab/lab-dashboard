@@ -56,7 +56,7 @@ st.markdown("---")
 st.subheader("Vai a")
 cols = st.columns(3)
 with cols[0]:
-    st.page_link("app.py", label="🏠 Home", use_container_width=True)
+    st.page_link("home.py", label="🏠 Home", use_container_width=True)
     st.page_link("pages/00_Vista_Insieme.py", label="📊 Vista d'insieme", use_container_width=True)
     st.page_link("pages/01_Dataset_Explorer.py", label="🔍 Dataset Explorer", use_container_width=True)
 with cols[1]:

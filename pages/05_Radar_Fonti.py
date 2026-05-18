@@ -5,7 +5,7 @@ Mostra lo stato GREEN/YELLOW/RED per ogni fonte, con storico e dettaglio.
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_radar, load_sources_registry, render_sidebar_common
+from sources import load_radar, load_sources_registry, render_sidebar_common, data_freshness_note
 render_sidebar_common()
 
 st.title("Radar fonti")
@@ -81,10 +81,6 @@ status_filter = st.selectbox(
     "Filtra per stato", ["Tutti", "GREEN", "YELLOW", "RED"]
 )
 
-log_filter = st.radio(
-    "Filtra per ultimo probe", ["Tutte", "Oggi", "Ieri", "Più vecchio"],
-    horizontal=True,
-)
 
 filtered_sources = sources
 if status_filter != "Tutti":

@@ -10,7 +10,7 @@ Basato su **Streamlit** + **DuckDB** + **Altair**. Legge metadati da GitHub raw 
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+streamlit run home.py
 ```
 
 Apri http://localhost:8501
@@ -44,7 +44,7 @@ Streamlit supporta tema chiaro e scuro nativamente:
 
 Su **Streamlit Community Cloud**:
 1. Collega il repo GitHub
-2. App principale: `app.py`
+2. App principale: `home.py`
 3. Python version: 3.12
 4. Deploy automatico a ogni push su `main`
 
