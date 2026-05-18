@@ -6,6 +6,7 @@ Data layer puro: non chiama mai st.*. Le eccezioni vengono propagate
 ai chiamanti che decidono come mostrare l'errore.
 """
 import io
+import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
