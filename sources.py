@@ -41,7 +41,10 @@ def render_sidebar_common():
         )
     st.sidebar.markdown("---")
     st.sidebar.caption("🌙 **Tema scuro**: ☰ → Settings → Theme")
-    st.sidebar.markdown("---")
+    st.sidebar.caption(
+        "💬 [Discussioni](https://github.com/dataciviclab/dataciviclab/discussions)"
+        " · [Explorer](https://dataciviclab.github.io/data-explorer/)"
+    )
     st.sidebar.caption(
         "📦 [dataset-incubator/registry]"
         "(https://github.com/dataciviclab/dataset-incubator/tree/main/registry)"
@@ -125,6 +128,77 @@ def data_freshness_note():
     t = last_fetch_time()
     if t:
         st.caption(f"📡 Dati caricati: {t.strftime('%d/%m/%Y %H:%M')} UTC")
+
+
+# ── GitHub Discussions ────────────────────────────────────────────────────────────
+def _github_token():
+    """Ritorna GITHUB_TOKEN da st.secrets o env. None se assente."""
+    try:
+        return st.secrets.get("github_token") or os.environ.get("GITHUB_TOKEN")
+    except Exception:
+        return os.environ.get("GITHUB_TOKEN")
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_recent_discussions(limit: int = 5):
+    """
+    Recupera le ultime discussion dal repo dataciviclab/dataciviclab.
+    Usa GraphQL API. Se non c'è token, restituisce lista vuota.
+    """
+    token = _github_token()
+    if not token:
+        return []
+
+    query = {
+        "query": f"""{{ repository(owner: "dataciviclab", name: "dataciviclab") {{
+            discussions(first: {limit}, orderBy: {{field: CREATED_AT, direction: DESC}}) {{
+                totalCount
+                nodes {{ title createdAt category {{ name }} url }}
+            }}
+        }} }}"""
+    }
+
+    try:
+        r = requests.post(
+            "https://api.github.com/graphql",
+            json=query,
+            headers={"Authorization": f"bearer {token}"},
+            timeout=10,
+        )
+        data = r.json()
+        return data.get("data", {}).get("repository", {}).get("discussions", {}).get("nodes", [])
+    except Exception:
+        return []
+
+
+def load_discussion_counts():
+    """
+    Ritorna conteggi per categoria: {'totale': N, 'domande': N, 'analisi': N, ...}
+    """
+    token = _github_token()
+    if not token:
+        return {"totale": 0, "domande": 0, "analisi": 0}
+
+    query = {
+        "query": """{
+            repository(owner: "dataciviclab", name: "dataciviclab") {
+                totale: discussions(first: 0) { totalCount }
+            }
+        }"""
+    }
+
+    try:
+        r = requests.post(
+            "https://api.github.com/graphql",
+            json=query,
+            headers={"Authorization": f"bearer {token}"},
+            timeout=10,
+        )
+        data = r.json()
+        total = data["data"]["repository"]["totale"]["totalCount"]
+        return {"totale": total, "domande": "?", "analisi": "?"}
+    except Exception:
+        return {"totale": 0, "domande": 0, "analisi": 0}
 
 
 # ── DuckDB (opzionale — attualmente usato solo per verifica spot) ────────────────

@@ -13,8 +13,8 @@ render_sidebar_common()
 st.title("Funnel candidate")
 
 st.markdown(
-    "Flusso end-to-end dei dataset nel Lab: dalla scoperta della fonte "
-    "alla pubblicazione nell'Explorer. "
+    "Come un dato pubblico diventa un dataset del Lab: "
+    "dalla scoperta della fonte alla pubblicazione nell'Explorer. "
     "Ogni stadio è indipendente — un dataset può entrare in validazione "
     "anche senza passare dall'intake (es. support datasets)."
 )
@@ -94,7 +94,9 @@ src_to_intake = round(n_intake / n_scouting * 100) if n_scouting else 0
 val_to_pub = round(n_published / max(n_validation, 1) * 100)
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("🔭 Scouting", n_scouting)
+active_scout = sum(1 for s in scouting_sources if not s["has_candidate"] and s["verdict"] == "go")
+col1.metric("🔭 Fonti monitorate", n_scouting,
+            f"{active_scout} in esplorazione attiva")
 col2.metric("📥 Intake", n_intake, f"{src_to_intake}% delle fonti")
 col3.metric("🔬 Validazione", n_validation)
 col4.metric("✅ Pubblicati", n_published, f"{val_to_pub}% dei validati")
@@ -108,7 +110,7 @@ max_n = max(n_scouting, n_intake, n_validation, n_published, 1)
 
 # Colori e label
 stages_info = [
-    ("🔭 Scouting", n_scouting, "#94a3b8"),
+    ("🔭 Fonti monitorate", n_scouting, "#94a3b8"),
     ("📥 Intake", n_intake, "#3b82f6"),
     ("🔬 Validazione", n_validation, "#f59e0b"),
     ("✅ Pubblicati", n_published, "#16a34a"),
@@ -144,7 +146,7 @@ st.markdown("---")
 
 # ── Dettaglio per stadio ──────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs(
-    [f"🔭 Scouting ({n_scouting})",
+    [f"🔭 Fonti monitorate ({n_scouting})",
      f"📥 Intake ({n_intake})",
      f"🔬 Validazione ({n_validation})",
      f"✅ Pubblicati ({n_published})"]
@@ -158,7 +160,11 @@ with tab1:
         scouting_sources if verdict_filter == "Tutti"
         else [s for s in scouting_sources if s["verdict"] == verdict_filter]
     )
-    st.caption(f"{len(filtered_scout)} fonti mostrate")
+    st.caption(
+    f"{len(filtered_scout)} fonti mostrate · "
+    f"{sum(1 for s in filtered_scout if s['has_candidate'])} già collegate a un dataset · "
+    f"{sum(1 for s in filtered_scout if not s['has_candidate'] and s['verdict']=='go')} in esplorazione attiva"
+)
     for src in filtered_scout:
         r = radar_map.get(src["id"], "?")
         e = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(r, "⚪")

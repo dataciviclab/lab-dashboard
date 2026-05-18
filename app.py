@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-DataCivicLab · Dashboard operativo interno.
-Entry point — homepage con panoramica live.
+DataCivicLab · Dashboard — lo stato del Laboratorio in un colpo d'occhio.
 """
 import streamlit as st
-from sources import LOGO_URL, load_catalog, load_signals, load_radar, render_sidebar_common, data_freshness_note
+from sources import (
+    LOGO_URL, load_catalog, load_signals, load_radar,
+    render_sidebar_common, data_freshness_note,
+    load_recent_discussions, load_discussion_counts,
+)
 
 st.set_page_config(
-    page_title="DataCivicLab · Dashboard",
+    page_title="DataCivicLab · Stato del Laboratorio",
     page_icon=LOGO_URL,
     layout="wide",
 )
 
-# CSS globale
+st.logo(LOGO_URL, size="large")
+
 st.markdown("""
 <style>
 .funnel-bar-bg { background: var(--secondary-background-color); }
@@ -20,16 +24,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar + logo (stesso codice di tutte le altre pagine)
 render_sidebar_common()
 
-st.title("DataCivicLab · Dashboard")
-st.markdown("Panoramica live dello stato del Laboratorio.")
+st.title("DataCivicLab · Stato del Laboratorio")
+st.markdown(
+    "Cosa stiamo facendo: dati, fonti e analisi in un colpo d'occhio."
+)
 
-# ── Carica dati live ──────────────────────────────────────────────────────────
+# ── Carica dati ───────────────────────────────────────────────────────────────
 catalog = load_catalog()
 signals = load_signals()
 radar = load_radar()
+discussions = load_recent_discussions(5)
+disc_counts = load_discussion_counts()
 
 datasets = catalog.get("datasets", [])
 sig_summary = signals.get("summary", {})
@@ -41,36 +48,35 @@ n_incubating = sum(1 for d in datasets if d.get("stage") == "incubating")
 n_ok = sig_summary.get("by_status", {}).get("ok", 0)
 n_green = radar_status.get("GREEN", 0)
 n_red = radar_status.get("RED", 0)
+n_disc = disc_counts.get("totale", 0)
 
 # ── Metriche ──────────────────────────────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("📦 Dataset totali", n_datasets,
-            f"{n_published} pubblicati · {n_incubating} in incubazione")
-col2.metric("✅ Pipeline OK", n_ok)
-col3.metric("🟢 Fonti attive", n_green)
-col4.metric("🔴 Fonti giù", n_red)
+col1.metric("📦 Dataset", f"{n_datasets} totali",
+            f"{n_published} pubblicati · {n_incubating} in corso")
+col2.metric("🟢 Fonti attive", n_green,
+            f"{n_red} non raggiungibili")
+col3.metric("💬 Discussioni", n_disc,
+            "pubbliche, in tutte le categorie")
+col4.metric("✅ Pipeline OK", n_ok)
 
 st.markdown("---")
 
-# ── Sezioni rapide ────────────────────────────────────────────────────────────
-st.subheader("Vai a")
-cols = st.columns(3)
-with cols[0]:
-    st.page_link("app.py", label="🏠 Home", use_container_width=True)
-    st.page_link("pages/00_Vista_Insieme.py", label="📊 Vista d'insieme", use_container_width=True)
-    st.page_link("pages/01_Dataset_Explorer.py", label="🔍 Dataset Explorer", use_container_width=True)
-with cols[1]:
-    st.page_link("pages/04_Funnel_Candidate.py", label="🎯 Funnel Candidate", use_container_width=True)
-    st.page_link("pages/05_Radar_Fonti.py", label="📡 Radar Fonti", use_container_width=True)
-with cols[2]:
-    st.page_link("pages/02_Pipeline_Health.py", label="⚙️ Pipeline Health", use_container_width=True)
-    st.page_link("pages/03_Copertura_Dati.py", label="📅 Copertura Dati", use_container_width=True)
+# ── Novità recenti dalle discussion ──────────────────────────────────────────
+if discussions:
+    st.subheader("💬 Novità recenti")
+    for d in discussions:
+        cat = d.get("category", {}).get("name", "?")
+        emoji = {"Analisi": "📊", "Domanda": "❓", "Datasets": "📦", "Annunci": "📢"}.get(cat, "💬")
+        title = d.get("title", "")
+        url = d.get("url", "")
+        date = d.get("createdAt", "")[:10]
+        st.write(f"{emoji} **[{cat}]** [{title}]({url}) · {date}")
+    st.markdown("---")
 
-st.markdown("---")
-
-# ── Primi dataset nel catalogo ────────────────────────────────────────────────
-st.subheader("Dataset nel catalogo")
-for ds in datasets[:10]:
+# ── Dataset nel catalogo ─────────────────────────────────────────────────────
+st.subheader("📦 Dataset nel catalogo")
+for ds in datasets[:8]:
     period = ds.get("period", {})
     yrs = f"{period.get('start', '?')}–{period.get('end', '?')}" if period else "?"
     emoji = "✅" if ds.get("stage") == "published" else "🔬"

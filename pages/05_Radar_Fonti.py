@@ -11,8 +11,8 @@ render_sidebar_common()
 st.title("Radar fonti")
 
 st.markdown(
-    "Salute dei portali monitorati dal Source Observatory. "
-    "I dati vengono aggiornati giornalmente dal radar."
+    "Quali portali pubblici italiani sono online oggi. "
+    "I dati vengono aggiornati giornalmente dal radar del Source Observatory."
 )
 
 # ── Carica dati ───────────────────────────────────────────────────────────────
