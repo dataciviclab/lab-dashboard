@@ -5,7 +5,8 @@ Mostra lo stato GREEN/YELLOW/RED per ogni fonte, con storico e dettaglio.
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_radar, load_sources_registry
+from sources import load_radar, load_sources_registry, render_sidebar_common
+render_sidebar_common()
 
 st.title("Radar fonti")
 

@@ -10,6 +10,35 @@ import pandas as pd
 import streamlit as st
 import yaml
 
+LOGO_URL = "https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg"
+
+
+def render_sidebar_common():
+    """Widget sidebar comuni a tutte le pagine (logo, auto-refresh, theme hint)."""
+    # Auto-refresh toggle persistente tramite session_state
+    refresh = st.sidebar.toggle(
+        "🔄 Ricarica 60s",
+        value=st.session_state.get("autorefresh", False),
+        key="ar_global",
+    )
+    st.session_state.autorefresh = refresh
+    if refresh:
+        st.markdown(
+            '<meta http-equiv="refresh" content="60">',
+            unsafe_allow_html=True,
+        )
+
+    # Hint tema (Settings menu)
+    st.sidebar.markdown("---")
+    st.sidebar.caption("🌙 **Tema scuro**: ☰ → Settings → Theme")
+
+    # Footer dati
+    st.sidebar.markdown("---")
+    st.sidebar.caption(
+        "📦 [dataset-incubator/registry]"
+        "(https://github.com/dataciviclab/dataset-incubator/tree/main/registry)"
+    )
+
 # ── URL costanti ──────────────────────────────────────────────────────────────
 REGISTRY_BASE = "https://raw.githubusercontent.com/dataciviclab/dataset-incubator/main/registry"
 SO_BASE = "https://raw.githubusercontent.com/dataciviclab/source-observatory/main"

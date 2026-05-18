@@ -6,53 +6,30 @@ Entry point — delega a pages/*.py per le sezioni.
 Avvio: streamlit run app.py
 """
 import streamlit as st
+from sources import LOGO_URL
 
 st.set_page_config(
     page_title="DataCivicLab · Dashboard",
-    page_icon="https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg",
+    page_icon=LOGO_URL,
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 
-# Sidebar comune
-st.logo(
-    "https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg",
-    size="large",
-)
-st.sidebar.title("DataCivicLab")
-st.sidebar.caption("Dashboard operativo")
+# Logo — visibile su tutte le pagine (Streamlit lo mantiene in navbar)
+st.logo(LOGO_URL, size="large")
 
-# Auto-refresh toggle
-_refresh = st.sidebar.toggle("🔄 Auto-refresh 60s", value=False, key="_autorefresh")
-if _refresh:
-    st.sidebar.caption("Ricarica ogni 60s")
-    st.markdown(
-        '<meta http-equiv="refresh" content="60">',
-        unsafe_allow_html=True,
-    )
-
-# CSS che si adatta automaticamente al tema nativo (sia light che dark)
+# CSS globale per componenti custom (funnel bars)
 st.markdown("""
 <style>
+.stApp > header, section[data-testid="stSidebar"] > div:first-child {
+    background: var(--background-color) !important;
+}
 .funnel-bar-bg { background: var(--secondary-background-color); }
 .funnel-bar-fill { color: var(--text-color) !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-st.sidebar.caption("🌙 **Tema**: ☰ menu → Settings → Theme")
-st.sidebar.markdown(
-    "Dati: [dataset-incubator/registry]"
-    "(https://github.com/dataciviclab/dataset-incubator/tree/main/registry) · "
-    "GCS parquet"
-)
-
-# La home page mostra una welcome; le pagine sono in pages/
 st.title("DataCivicLab · Dashboard")
-st.markdown(
-    "Dashboard operativo interno del Lab.\n\n"
-    "Seleziona una sezione dal menu a sinistra."
-)
+st.markdown("Seleziona una sezione dal menu a sinistra.")
 
 col1, col2, col3 = st.columns(3)
 col1.info("📦 **Dataset** · 24+ nel catalogo")

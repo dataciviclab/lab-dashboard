@@ -2,7 +2,8 @@
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_signals
+from sources import load_signals, render_sidebar_common
+render_sidebar_common()
 
 st.title("Pipeline Health")
 

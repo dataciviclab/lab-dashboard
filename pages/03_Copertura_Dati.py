@@ -2,7 +2,8 @@
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_catalog, duckdb_query
+from sources import load_catalog, duckdb_query, render_sidebar_common
+render_sidebar_common()
 
 st.title("Copertura dati")
 

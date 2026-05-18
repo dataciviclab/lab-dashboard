@@ -1,7 +1,8 @@
 """Vista d'insieme — metriche aggregate."""
 import streamlit as st
 import pandas as pd
-from sources import load_catalog, load_signals
+from sources import load_catalog, load_signals, render_sidebar_common
+render_sidebar_common()
 
 st.title("Vista d'insieme")
 
