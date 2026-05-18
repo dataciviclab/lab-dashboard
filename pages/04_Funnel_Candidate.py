@@ -54,14 +54,14 @@ radar_map = {s["id"]: s["status"] for s in radar_sources}
 
 # 2. INTAKE / VALIDAZIONE / PUBBLICATI
 catalog_slugs = set(ds["slug"] for ds in datasets)
-intake_candidates = []
-validation_datasets = []
+candidati = []
+incubazione = []
 published_datasets = []
 
 for sig in sigs:
     slug = sig["id"].replace("-", "_")
     if slug not in catalog_slugs:
-        intake_candidates.append({
+        candidati.append({
             "slug": slug,
             "id": sig["id"],
             "source_id": sig.get("source_id", "?"),
@@ -82,12 +82,12 @@ for ds in datasets:
     if stage == "published":
         published_datasets.append(item)
     elif stage == "incubating":
-        validation_datasets.append(item)
+        incubazione.append(item)
 
 # ── Metriche funnel ───────────────────────────────────────────────────────────
 n_scouting = len(scouting_sources)
-n_intake = len(intake_candidates)
-n_validation = len(validation_datasets)
+n_intake = len(candidati)
+n_validation = len(incubazione)
 n_published = len(published_datasets)
 
 src_to_intake = round(n_intake / n_scouting * 100) if n_scouting else 0
@@ -97,8 +97,8 @@ col1, col2, col3, col4 = st.columns(4)
 active_scout = sum(1 for s in scouting_sources if not s["has_candidate"] and s["verdict"] == "go")
 col1.metric("🔭 Fonti monitorate", n_scouting,
             f"{active_scout} in esplorazione attiva")
-col2.metric("📥 Intake", n_intake, f"{src_to_intake}% delle fonti")
-col3.metric("🔬 Validazione", n_validation)
+col2.metric("📥 Candidati", n_intake, f"{src_to_intake}% delle fonti")
+col3.metric("🔬 Incubazione", n_validation)
 col4.metric("✅ Pubblicati", n_published, f"{val_to_pub}% dei validati")
 
 # ── Funnel visuale (barre proporzionali) ──────────────────────────────────────
@@ -111,8 +111,8 @@ max_n = max(n_scouting, n_intake, n_validation, n_published, 1)
 # Colori e label
 stages_info = [
     ("🔭 Fonti monitorate", n_scouting, "#94a3b8"),
-    ("📥 Intake", n_intake, "#3b82f6"),
-    ("🔬 Validazione", n_validation, "#f59e0b"),
+    ("📥 Candidati", n_intake, "#3b82f6"),
+    ("🔬 Incubazione", n_validation, "#f59e0b"),
     ("✅ Pubblicati", n_published, "#16a34a"),
 ]
 
@@ -147,8 +147,8 @@ st.markdown("---")
 # ── Dettaglio per stadio ──────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs(
     [f"🔭 Fonti monitorate ({n_scouting})",
-     f"📥 Intake ({n_intake})",
-     f"🔬 Validazione ({n_validation})",
+     f"📥 Candidati ({n_intake})",
+     f"🔬 Incubazione ({n_validation})",
      f"✅ Pubblicati ({n_published})"]
 )
 
@@ -177,7 +177,7 @@ with tab1:
 
 with tab2:
     st.caption("dataset.yml + pipeline CI, ma nessun clean parquet su GCS ancora")
-    for c in intake_candidates:
+    for c in candidati:
         e = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(c["status"], "❓")
         with st.expander(f"{e} **{c['slug']}** — fonte: {c['source_id']}"):
             st.write(f"**Dettaglio:** {c['detail']}")
@@ -185,7 +185,7 @@ with tab2:
 
 with tab3:
     st.caption("Clean parquet su GCS, in attesa di pubblicazione in Explorer")
-    for ds in validation_datasets:
+    for ds in incubazione:
         with st.expander(f"🔬 **{ds['slug']}** — fonte: {ds['source_id']}"):
             st.write(f"**Nome:** {ds['name']}")
             st.write(f"**Descrizione:** {ds['description']}")
