@@ -66,43 +66,41 @@ def _fetch_yaml(url: str) -> dict:
     return yaml.safe_load(r.text) or {}
 
 
-# ── Caricatori con cache e decorator safe — la UI riceve fallback silenzioso ──────
-def _safe(fn):
-    """Wrapper: cattura eccezioni e restituisce valore di fallimento."""
-    def wrapper(*args, **kwargs):
-        try:
-            return fn(*args, **kwargs)
-        except requests.RequestException as e:
-            st.error(f"❌ **{fn.__name__}**: {e}")
-            return {}
-        except Exception as e:
-            st.error(f"❌ **{fn.__name__}**: errore imprevisto — {e}")
-            return {}
-    return wrapper
-
-
+# ── Caricatori con cache — errori mostrati nella UI ──────────────────────────────
 @st.cache_data(ttl=120, show_spinner=False)
-@_safe
 def load_catalog():
-    return _fetch_json(f"{REGISTRY_BASE}/clean_catalog.json")
+    try:
+        return _fetch_json(f"{REGISTRY_BASE}/clean_catalog.json")
+    except Exception as e:
+        st.error(f"❌ Catalogo non disponibile: {e}")
+        return {}
 
 
 @st.cache_data(ttl=120, show_spinner=False)
-@_safe
 def load_signals():
-    return _fetch_json(f"{REGISTRY_BASE}/pipeline_signals.json")
+    try:
+        return _fetch_json(f"{REGISTRY_BASE}/pipeline_signals.json")
+    except Exception as e:
+        st.error(f"❌ Segnali pipeline non disponibili: {e}")
+        return {}
 
 
 @st.cache_data(ttl=120, show_spinner=False)
-@_safe
 def load_radar():
-    return _fetch_json(f"{SO_BASE}/data/radar/radar_summary.json")
+    try:
+        return _fetch_json(f"{SO_BASE}/data/radar/radar_summary.json")
+    except Exception as e:
+        st.error(f"❌ Radar fonti non disponibile: {e}")
+        return {}
 
 
 @st.cache_data(ttl=120, show_spinner=False)
-@_safe
 def load_sources_registry():
-    return _fetch_yaml(f"{SO_BASE}/data/radar/sources_registry.yaml")
+    try:
+        return _fetch_yaml(f"{SO_BASE}/data/radar/sources_registry.yaml")
+    except Exception as e:
+        st.error(f"❌ Registro fonti non disponibile: {e}")
+        return {}
 
 
 def last_fetch_time() -> Optional[datetime]:
