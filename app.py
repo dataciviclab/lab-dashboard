@@ -68,11 +68,12 @@ with cols[2]:
 
 st.markdown("---")
 
-# ── Ultimi dataset aggiornati ────────────────────────────────────────────────
-st.subheader("Ultimi aggiornamenti")
-recent = sorted(datasets, key=lambda d: d.get("updated_at", ""), reverse=True)[:8]
-for ds in recent:
+# ── Primi dataset nel catalogo ────────────────────────────────────────────────
+st.subheader("Dataset nel catalogo")
+for ds in datasets[:10]:
+    period = ds.get("period", {})
+    yrs = f"{period.get('start', '?')}–{period.get('end', '?')}" if period else "?"
     emoji = "✅" if ds.get("stage") == "published" else "🔬"
-    st.write(f"{emoji} **{ds['slug']}** — {ds.get('stage', '?')} · {ds.get('updated_at', '?')}")
+    st.write(f"{emoji} **{ds['slug']}** · {ds.get('stage', '?')} · {yrs}")
 
 data_freshness_note()

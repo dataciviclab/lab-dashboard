@@ -106,7 +106,7 @@ with st.expander(f"🟡 YELLOW ({len(yellow)})", expanded=len(yellow) > 0):
 
 with st.expander(f"🔴 RED ({len(red)})", expanded=True):
     for s in red:
-        streak = s.get("red_streak", 0)
+        streak = (s.get("red_streak") or 0)
         d = f" · {s.get('note', '')}" if s.get("note") else ""
         st.write(f"- **{s['id']}** ({s.get('protocol', '?')}) — HTTP {s.get('http_code', '?')} — streak {streak}g{d}")
 
