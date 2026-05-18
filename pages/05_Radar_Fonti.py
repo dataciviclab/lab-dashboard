@@ -5,7 +5,7 @@ Mostra lo stato GREEN/YELLOW/RED per ogni fonte, con storico e dettaglio.
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_radar, load_sources_registry, render_sidebar_common, data_freshness_note
+from sources import load_radar, load_radar_history, load_sources_registry, render_sidebar_common, data_freshness_note
 render_sidebar_common()
 
 st.title("Radar fonti")
@@ -73,6 +73,66 @@ with col_b:
 
 st.markdown("---")
 
+# ── Trend storico ──────────────────────────────────────────────
+st.subheader("Trend storico")
+
+radar_history = load_radar_history()
+probes = radar_history.get("probes", [])
+
+if probes:
+    # Costruisci DataFrame: probe_date × source_id × status
+    rows = []
+    for probe in probes:
+        pdate = probe.get("probe_date", "?")
+        for src in probe.get("sources", []):
+            rows.append({
+                "data": pdate,
+                "fonte": src.get("id", "?"),
+                "stato": src.get("status", "?"),
+            })
+
+    if rows:
+        hist_df = pd.DataFrame(rows)
+
+        # 1. Grafico a linee: conteggi per stato nel tempo
+        trend = hist_df.groupby(["data", "stato"]).size().reset_index(name="conteggio")
+        status_order = ["GREEN", "YELLOW", "RED"]
+        trend["stato"] = pd.Categorical(trend["stato"], categories=status_order, ordered=True)
+        trend = trend.sort_values(["data", "stato"])
+
+        line_chart = alt.Chart(trend).mark_line(point=True).encode(
+            x=alt.X("data:T", title="Data"),
+            y=alt.Y("conteggio:Q", title="Fonti"),
+            color=alt.Color(
+                "stato:N",
+                scale={"domain": ["GREEN", "YELLOW", "RED"],
+                       "range": ["#16a34a", "#fbbf24", "#dc2626"]},
+                title="Stato",
+            ),
+            tooltip=["data:T", "stato:N", "conteggio:Q"],
+        ).properties(height=250)
+        st.altair_chart(line_chart, use_container_width=True)
+
+        # 2. Heatmap fonte × data
+        heat = alt.Chart(hist_df).mark_rect().encode(
+            x=alt.X("data:T", title="Data"),
+            y=alt.Y("fonte:N", title="Fonte"),
+            color=alt.Color(
+                "stato:N",
+                scale={"domain": ["GREEN", "YELLOW", "RED", "?"],
+                       "range": ["#16a34a", "#fbbf24", "#dc2626", "#94a3b8"]},
+                title="Stato",
+            ),
+            tooltip=["data:T", "fonte:N", "stato:N"],
+        ).properties(height=350)
+        st.altair_chart(heat, use_container_width=True)
+    else:
+        st.info("Nessun dato storico disponibile.")
+else:
+    st.info("Storico probe non ancora disponibile.")
+
+st.markdown("---")
+
 # ── Lista fonti ───────────────────────────────────────────────────────────────
 st.subheader("Dettaglio fonti")
 
@@ -118,4 +178,4 @@ if unknown:
 st.markdown("---")
 data_freshness_note()
 
-st.caption("Fonte: source-observatory/data/radar/radar_summary.json · probe giornaliero automatico")
+st.caption("Fonti: source-observatory/data/radar/radar_summary.json · radar_history.json · probe giornaliero automatico")

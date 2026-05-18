@@ -2,8 +2,8 @@
 Fonti dati condivise per il dashboard.
 Legge da GitHub raw (metadati) e, opzionalmente, GCS parquet via DuckDB.
 
-Data layer puro: non chiama mai st.*. Le eccezioni vengono propagate
-ai chiamanti che decidono come mostrare l'errore.
+I loader usano st.cache_data e mostrano errori con st.error() per robustezza
+in produzione Streamlit. I fallback su dict/list vuoti evitano crash di pagina.
 """
 import io
 import os
@@ -116,6 +116,32 @@ def load_sources_registry():
     except Exception as e:
         st.error(f"❌ Registro fonti non disponibile: {e}")
         return {}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_radar_history():
+    """
+    Storico probe radar: transizioni stato per fonte.
+    Usato in 05_Radar_Fonti per timeline chart.
+    """
+    try:
+        return _fetch_json(f"{SO_BASE}/data/radar/radar_history.json")
+    except Exception as e:
+        st.error(f"❌ Storico radar non disponibile: {e}")
+        return {"probes": []}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_catalog_signals():
+    """
+    Segnali inventariali SO: metric_value, suggested_action, topics per fonte.
+    Usato in 04_Funnel_Candidate per prioritizzare lo scouting.
+    """
+    try:
+        return _fetch_json(f"{SO_BASE}/data/catalog/catalog_signals.json")
+    except Exception as e:
+        st.error(f"❌ Segnali catalogo non disponibili: {e}")
+        return {"signals": []}
 
 
 def last_fetch_time() -> Optional[datetime]:
