@@ -1,6 +1,6 @@
 """Dataset Explorer — browse e filtra il catalogo."""
 import streamlit as st
-from lib.sources import load_catalog
+from sources import load_catalog
 
 st.title("Dataset Explorer")
 

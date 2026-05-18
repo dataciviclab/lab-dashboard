@@ -9,7 +9,7 @@ Ogni stadio mostra:
 import streamlit as st
 import altair as alt
 import pandas as pd
-from lib.sources import load_catalog, load_signals, load_sources_registry, load_radar
+from sources import load_catalog, load_signals, load_sources_registry, load_radar
 
 st.title("Funnel candidate")
 

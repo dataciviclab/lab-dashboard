@@ -2,7 +2,7 @@
 import streamlit as st
 import altair as alt
 import pandas as pd
-from lib.sources import load_signals
+from sources import load_signals
 
 st.title("Pipeline Health")
 
