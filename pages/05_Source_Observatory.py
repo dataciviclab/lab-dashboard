@@ -100,7 +100,8 @@ if radar.get("persistent_red", 0):
     st.warning(f"🔴 **{radar['persistent_red']} fonte/i** "
                f"persistentemente RED (streak > 7 giorni)")
 
-st.caption(f"Ultimo probe radar: {generated_at}")
+st.caption(f"Ultimo probe radar: {generated_at} · "
+           f"inventory: {n_inventory} fonti")
 st.markdown("---")
 
 # ── Radar trend ───────────────────────────────────────────────────
