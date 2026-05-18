@@ -5,8 +5,6 @@ Mostra il percorso di un dataset dalla scoperta alla pubblicazione,
 con tassi di conversione tra stadi e dettaglio per ogni fase.
 """
 import streamlit as st
-import altair as alt
-import pandas as pd
 from sources import load_catalog, load_signals, load_sources_registry, load_radar, render_sidebar_common, data_freshness_note
 render_sidebar_common()
 

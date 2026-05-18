@@ -5,7 +5,6 @@ Legge da GitHub raw (metadati) e, opzionalmente, GCS parquet via DuckDB.
 I loader usano st.cache_data e mostrano errori con st.error() per robustezza
 in produzione Streamlit. I fallback su dict/list vuoti evitano crash di pagina.
 """
-import io
 import os
 from datetime import datetime, timezone
 from typing import Any, Optional
