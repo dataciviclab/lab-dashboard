@@ -4,15 +4,13 @@ DataCivicLab · Dashboard operativo interno.
 Entry point — homepage con panoramica live.
 """
 import streamlit as st
-from sources import LOGO_URL, load_catalog, load_signals, load_radar, data_freshness_note
+from sources import LOGO_URL, load_catalog, load_signals, load_radar, render_sidebar_common, data_freshness_note
 
 st.set_page_config(
     page_title="DataCivicLab · Dashboard",
     page_icon=LOGO_URL,
     layout="wide",
 )
-
-st.logo(LOGO_URL, size="large")
 
 # CSS globale
 st.markdown("""
@@ -21,6 +19,9 @@ st.markdown("""
 .funnel-bar-fill { color: var(--text-color) !important; }
 </style>
 """, unsafe_allow_html=True)
+
+# Sidebar + logo (stesso codice di tutte le altre pagine)
+render_sidebar_common()
 
 st.title("DataCivicLab · Dashboard")
 st.markdown("Panoramica live dello stato del Laboratorio.")

@@ -1,5 +1,6 @@
 """Dataset Explorer — browse e filtra il catalogo."""
 import streamlit as st
+from sources import load_catalog, render_sidebar_common, data_freshness_note
 render_sidebar_common()
 
 st.title("Dataset Explorer")

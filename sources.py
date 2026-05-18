@@ -23,7 +23,12 @@ GCS_BASE = "https://storage.googleapis.com/dataciviclab-clean"
 
 # ── Sidebar comune ────────────────────────────────────────────────────────────────
 def render_sidebar_common():
-    """Widget sidebar comuni a tutte le pagine."""
+    """Widget sidebar comuni a tutte le pagine.
+    Include logo, auto-refresh, hint tema e footer.
+    """
+    # Logo — richiamato su ogni pagina per garantirne la visibilità
+    st.logo(LOGO_URL, size="large")
+
     refresh = st.sidebar.toggle(
         "🔄 Ricarica 60s",
         value=st.session_state.get("autorefresh", False),
