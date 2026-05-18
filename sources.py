@@ -122,7 +122,7 @@ def load_sources_registry():
 def load_radar_history():
     """
     Storico probe radar: transizioni stato per fonte.
-    Usato in 05_Radar_Fonti per timeline chart.
+    Usato in 05_Source_Observatory per timeline chart.
     """
     try:
         return _fetch_json(f"{SO_BASE}/data/radar/radar_history.json")
@@ -142,6 +142,19 @@ def load_catalog_signals():
     except Exception as e:
         st.error(f"❌ Segnali catalogo non disponibili: {e}")
         return {"signals": []}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_inventory_report():
+    """
+    Report inventario SO da GCS: stato build, righe, errore per fonte.
+    Usato in 05_Source_Observatory per badge ✅/❌ e tabella fonti.
+    """
+    try:
+        return _fetch_json(f"{GCS_BASE}/catalog_inventory/catalog_inventory_report.json")
+    except Exception as e:
+        st.error(f"❌ Report inventario non disponibile: {e}")
+        return {}
 
 
 def last_fetch_time() -> Optional[datetime]:

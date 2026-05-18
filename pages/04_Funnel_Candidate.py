@@ -7,7 +7,7 @@ con tassi di conversione tra stadi e dettaglio per ogni fase.
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_catalog, load_signals, load_sources_registry, load_radar, load_catalog_signals, render_sidebar_common, data_freshness_note
+from sources import load_catalog, load_signals, load_sources_registry, load_radar, render_sidebar_common, data_freshness_note
 render_sidebar_common()
 
 st.title("Funnel candidate")
@@ -24,15 +24,10 @@ catalog = load_catalog()
 signals = load_signals()
 registry = load_sources_registry()
 radar = load_radar()
-catalog_signals = load_catalog_signals()
 
 datasets = catalog.get("datasets", [])
 sigs = signals.get("signals", [])
 radar_sources = radar.get("sources", [])
-signals_map = {}
-for sig in catalog_signals.get("signals", []):
-    src_id = sig.get("source", "")
-    signals_map[src_id] = sig
 
 # ── Costruisci i quattro stadi ────────────────────────────────────────────────
 
@@ -100,10 +95,8 @@ val_to_pub = round(n_published / max(n_validation, 1) * 100)
 
 col1, col2, col3, col4 = st.columns(4)
 active_scout = sum(1 for s in scouting_sources if not s["has_candidate"] and s["verdict"] == "go")
-n_with_signal = sum(1 for sig in signals_map.values()
-                    if sig.get("suggested_action") in ("catalog-watch-ready", "low signal"))
 col1.metric("🔭 Fonti monitorate", n_scouting,
-            f"{active_scout} in esplorazione · {n_with_signal} con segnale")
+            f"{active_scout} in esplorazione")
 col2.metric("📥 Candidati", n_intake, f"{src_to_intake}% delle fonti")
 col3.metric("🔬 Incubazione", n_validation)
 col4.metric("✅ Pubblicati", n_published, f"{val_to_pub}% dei validati")
@@ -160,65 +153,33 @@ tab1, tab2, tab3, tab4 = st.tabs(
 )
 
 with tab1:
-    col_v, col_s = st.columns(2)
-    with col_v:
-        verdict_filter = st.selectbox(
-            "Filtra per verdict", ["Tutti", "go", "hold"], key="scout_v"
-        )
-    with col_s:
-        signal_actions = ["Tutti", "catalog-watch-ready", "low signal", "nessuna"]
-        signal_filter = st.selectbox(
-            "Filtra per segnale inventariale", signal_actions, key="scout_sig"
-        )
+    st.markdown(
+        "👉 Per dettaglio radar, inventario e segnali per fonte, "
+        "vedi **[Source Observatory](/Source_Observatory)**."
+    )
 
-    filtered_scout = scouting_sources
-    if verdict_filter != "Tutti":
-        filtered_scout = [s for s in filtered_scout if s["verdict"] == verdict_filter]
-    if signal_filter != "Tutti":
-        filtered_scout = [
-            s for s in filtered_scout
-            if signals_map.get(s["id"], {}).get("suggested_action") == signal_filter
-        ]
+    verdict_filter = st.selectbox(
+        "Filtra per verdict", ["Tutti", "go", "hold"], key="scout_v"
+    )
+    filtered_scout = (
+        scouting_sources if verdict_filter == "Tutti"
+        else [s for s in scouting_sources if s["verdict"] == verdict_filter]
+    )
 
     n_scout_candidate = sum(1 for s in filtered_scout if s['has_candidate'])
     n_scout_exploring = sum(1 for s in filtered_scout if not s['has_candidate'] and s['verdict']=='go')
-    n_scout_signaled = sum(1 for s in filtered_scout
-                           if signals_map.get(s["id"], {}).get("suggested_action") in ("catalog-watch-ready", "low signal"))
     st.caption(
         f"{len(filtered_scout)} fonti mostrate · "
         f"{n_scout_candidate} con dataset · "
-        f"{n_scout_exploring} in esplorazione · "
-        f"{n_scout_signaled} con segnale inventariale"
+        f"{n_scout_exploring} in esplorazione attiva"
     )
     for src in filtered_scout:
         r = radar_map.get(src["id"], "?")
         e = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(r, "⚪")
         lbl = "→ ha candidato" if src["has_candidate"] else "in attesa"
-
-        # Segnale inventariale
-        sig = signals_map.get(src["id"], {})
-        sig_action = sig.get("suggested_action", "?")
-        sig_metric = sig.get("metric_value", "")
-        sig_topics = sig.get("topics", {})
-        topics_str = ", ".join(f"{k}={v}" for k, v in sig_topics.items()) if sig_topics else ""
-        sig_badge = {
-            "catalog-watch-ready": "📡 pronto",
-            "low signal": "📡 segnale debole",
-            "nessuna": "",
-        }.get(sig_action, sig_action)
-
-        expander_title = f"{e} **{src['id']}** — {src['verdict']} · {lbl}"
-        if sig_badge:
-            expander_title += f" · {sig_badge}"
-        with st.expander(expander_title):
+        with st.expander(f"{e} **{src['id']}** — {src['verdict']} · {lbl}"):
             st.write(f"**Radar:** {r}")
             st.write(f"**Modalità:** {src['mode']}")
-            if sig:
-                st.write(f"**Segnale:** {sig_action} · {sig_metric} item" if sig_metric else f"**Segnale:** {sig_action}")
-                if topics_str:
-                    st.write(f"**Topic rilevati:** {topics_str}")
-                if sig.get("years_range"):
-                    st.write(f"**Copertura anni:** {sig['years_range'][0]}–{sig['years_range'][1]}")
             if src["datasets"]:
                 st.write(f"**Dataset in uso:** {', '.join(src['datasets'])}")
 
@@ -248,7 +209,7 @@ with tab4:
 
 st.markdown("---")
 st.caption(
-    "Dati incrociati da: source-observatory (radar/registry/catalog_signals) → "
+    "Dati incrociati da: source-observatory (sources_registry) → "
     "dataset-incubator (pipeline_signals + clean_catalog)"
 )
 data_freshness_note()
