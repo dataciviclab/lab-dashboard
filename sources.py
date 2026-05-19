@@ -100,7 +100,7 @@ def load_radar_history():
         return _fetch_json(f"{SO_BASE}/data/radar/radar_history.json")
     except Exception as e:
         st.error(f"❌ Storico radar non disponibile: {e}")
-        return {"sources": []}
+        return {"probes": []}
 
 
 @st.cache_data(ttl=300, show_spinner=False)

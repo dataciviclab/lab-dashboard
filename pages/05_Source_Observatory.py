@@ -201,17 +201,17 @@ st.markdown("---")
 # ── Radar trend ───────────────────────────────────────────────────
 st.subheader("Trend radar storico")
 
-sources_arr = radar_history_data.get("sources", [])
+probes = radar_history_data.get("probes", [])
 
-if sources_arr:
+if probes:
     rows = []
-    for src in sources_arr:
-        src_id = src.get("source_id", "?")
-        for probe in src.get("probes", []):
+    for probe in probes:
+        pdate = probe.get("probe_date", "?")
+        for src in probe.get("sources", []):
             rows.append({
-                "data": probe.get("probe_date", "?"),
-                "fonte": src_id,
-                "stato": probe.get("status", "?"),
+                "data": pdate,
+                "fonte": src.get("id", "?"),
+                "stato": src.get("status", "?"),
             })
 
     if rows:
