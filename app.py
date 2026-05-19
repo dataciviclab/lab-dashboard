@@ -29,7 +29,9 @@ pages = {
         st.Page("pages/00_Vista_Insieme.py", title="Vista d'insieme", icon="📊", default=True),
     ],
     "Source Observatory": [
-        st.Page("pages/05_Source_Observatory.py", title="Stato e KPI", icon="🔭"),
+        st.Page("pages/05_Radar.py", title="Radar", icon="📡"),
+        st.Page("pages/06_Inventario.py", title="Inventario", icon="📦"),
+        st.Page("pages/07_Fonti.py", title="Fonti e segnali", icon="🔍"),
     ],
     "Dataset Incubator": [
         st.Page("pages/02_Pipeline_Health.py", title="Pipeline CI", icon="⚙️"),
@@ -40,7 +42,7 @@ pages = {
         st.Page("pages/01_Dataset_Explorer.py", title="Esplora dataset", icon="📚"),
     ],
     "Community": [
-        st.Page("pages/06_Discussioni.py", title="Discussioni", icon="💬"),
+        st.Page("pages/08_Discussioni.py", title="Discussioni", icon="💬"),
     ],
 }
 

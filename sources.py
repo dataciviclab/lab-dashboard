@@ -129,6 +129,38 @@ def load_inventory_report():
         return {}
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def load_check_coverage():
+    """
+    Items in inventario vs items checked per fonte, via DuckDB su GCS parquet.
+    Incrocia catalog_inventory_latest.parquet con source_check_results.parquet.
+    Ritorna DataFrame con: source_id, inv_items, chk_items, reachable, candidates.
+    """
+    try:
+        inv_url = f"{GCS_BASE}/catalog_inventory/catalog_inventory_latest.parquet"
+        chk_url = f"{GCS_BASE}/catalog_inventory/source-check/source_check_results.parquet"
+        with duckdb.connect() as con:
+            return con.sql(f"""
+                SELECT COALESCE(i.source_id, c.source_id) AS source_id,
+                       COALESCE(i.inv_items, 0)::BIGINT AS inv_items,
+                       COALESCE(c.chk_items, 0)::BIGINT AS chk_items,
+                       COALESCE(c.reachable, 0)::BIGINT AS reachable,
+                       COALESCE(c.candidates, 0)::BIGINT AS candidates
+                FROM (SELECT source_id, COUNT(*) AS inv_items
+                      FROM read_parquet('{inv_url}') GROUP BY source_id) i
+                FULL JOIN (SELECT source_id,
+                                  COUNT(*) AS chk_items,
+                                  SUM(CASE WHEN reachable THEN 1 ELSE 0 END) AS reachable,
+                                  SUM(CASE WHEN intake_candidate THEN 1 ELSE 0 END) AS candidates
+                           FROM read_parquet('{chk_url}') GROUP BY source_id) c
+                ON i.source_id = c.source_id
+                ORDER BY inv_items DESC
+            """).df()
+    except Exception as e:
+        st.error(f"❌ Check coverage non disponibile: {e}")
+        return pd.DataFrame()
+
+
 def last_fetch_time() -> Optional[datetime]:
     if not _LAST_FETCH:
         return None

@@ -1,29 +1,29 @@
 """
-Source Observatory — stato e KPI del monitoraggio fonti.
-Unifica radar, inventario, segnali e funnel SO in un'unica pagina.
+Radar — salute e trend del monitoraggio fonti.
+Funnel delle fonti, stato radar GREEN/YELLOW/RED, trend storico.
 """
 import streamlit as st
 import altair as alt
 import pandas as pd
 from sources import (
     load_radar, load_radar_history, load_sources_registry,
-    load_catalog_signals, load_inventory_report, load_signals,
+    load_inventory_report, load_catalog_signals, load_signals,
     data_freshness_note,
 )
-st.title("Source Observatory")
+st.title("📡 Radar")
 
 st.markdown(
-    "Stato del monitoraggio fonti: dal censimento all'intake. "
-    "Il funnel mostra quante fonti arrivano a ogni stadio; "
-    "la tabella sotto riassume tutti gli indicatori per fonte."
+    "Stato del monitoraggio delle fonti pubbliche: "
+    "dalla scoperta all'intake. "
+    "Il funnel mostra quante fonti arrivano a ogni stadio."
 )
 
 # ── Carica dati ───────────────────────────────────────────────────
 radar = load_radar()
 radar_history_data = load_radar_history()
 registry = load_sources_registry()
-catalog_signals = load_catalog_signals()
 inventory_report = load_inventory_report()
+catalog_signals = load_catalog_signals()
 pipeline_signals = load_signals()
 
 sources = radar.get("sources", [])
@@ -33,9 +33,9 @@ inventory_sources = inventory_report.get("sources", {})
 signals_list = catalog_signals.get("signals", [])
 sigs = pipeline_signals.get("signals", [])
 
-# Build maps
 radar_map = {s["id"]: s for s in sources}
 signals_map = {sig.get("source", ""): sig for sig in signals_list}
+
 candidate_source_ids = set()
 for sig in sigs:
     if sig.get("source_id"):
@@ -120,6 +120,8 @@ if probes:
 
     if rows:
         hist_df = pd.DataFrame(rows)
+        # Deduplica: più probe nella stessa data gonfiano i conteggi
+        hist_df = hist_df.drop_duplicates(subset=["data", "fonte"], keep="last")
 
         # 1. Line chart: conteggi per stato nel tempo
         trend = (hist_df.groupby(["data", "stato"])
@@ -154,7 +156,7 @@ if probes:
         fonte_order = latest_status.sort_values("ordine")["fonte"].tolist()
 
         heat = alt.Chart(hist_df).mark_rect().encode(
-            x=alt.X("data:T", title="Data"),
+            x=alt.X("data:O", title="Data", axis=alt.Axis(labelAngle=-45)),
             y=alt.Y("fonte:N", title="Fonte", sort=fonte_order),
             color=alt.Color(
                 "stato:N",
@@ -162,7 +164,7 @@ if probes:
                        "range": ["#16a34a", "#fbbf24", "#dc2626", "#94a3b8"]},
                 title="Stato",
             ),
-            tooltip=["data:T", "fonte:N", "stato:N"],
+            tooltip=["data:O", "fonte:N", "stato:N"],
         ).properties(height=320)
         st.altair_chart(heat, use_container_width=True)
     else:
@@ -170,129 +172,4 @@ if probes:
 else:
     st.info("Storico probe non ancora disponibile.")
 
-st.markdown("---")
-
-# ── Tabella fonti unificata ───────────────────────────────────────
-st.subheader("Dettaglio fonti")
-
-# Costruisci dataframe riepilogativo
-table_rows = []
-for src_id, src_data in registry.items():
-    radar_s = radar_map.get(src_id, {})
-    inv = inventory_sources.get(src_id, {})
-    sig = signals_map.get(src_id, {})
-
-    # Badge radar
-    radar_status = radar_s.get("status", "?")
-    radar_emoji = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(
-        radar_status, "⚪")
-
-    # Badge inventario
-    inv_status = inv.get("status", "")
-    inv_badge = ("✅" if inv_status == "ok"
-                 else ("❌" if inv_status == "error" else "—"))
-
-    # Segnale
-    sig_action = sig.get("suggested_action", "")
-    sig_badge = {"catalog-watch-ready": "📡",
-                 "low signal": "🔉", "nessuna": ""}.get(sig_action, "?")
-
-    table_rows.append({
-        "id": src_id,
-        "protocollo": src_data.get("protocol", "?"),
-        "radar": f"{radar_emoji} {radar_status}",
-        "inventario": inv_badge,
-        "item_count": inv.get("rows", ""),
-        "segnale": sig_badge,
-        "azione": sig_action,
-        "verdict": src_data.get("verdict", "?"),
-        "modalità": src_data.get("observation_mode", "?"),
-    })
-
-df_table = pd.DataFrame(table_rows)
-
-# Filtri
-col_f1, col_f2, col_f3 = st.columns(3)
-with col_f1:
-    rf = st.selectbox("Filtra radar", ["Tutti", "GREEN", "YELLOW", "RED"])
-with col_f2:
-    vf = st.selectbox("Filtra verdict", ["Tutti", "go", "hold"])
-with col_f3:
-    af = st.selectbox("Filtra azione segnale",
-                      ["Tutti", "catalog-watch-ready", "low signal", "nessuna"])
-
-filtered = df_table
-if rf != "Tutti":
-    filtered = filtered[filtered["radar"].str.contains(rf)]
-if vf != "Tutti":
-    filtered = filtered[filtered["verdict"] == vf]
-if af != "Tutti":
-    filtered = filtered[filtered["azione"] == af]
-
-st.dataframe(
-    filtered.drop(columns=["azione"]),
-    column_config={
-        "id": "Fonte",
-        "protocollo": "Protocollo",
-        "radar": "Radar",
-        "inventario": "Inv.",
-        "item_count": st.column_config.NumberColumn("Item", format="%d"),
-        "segnale": "Segnale",
-        "verdict": "Verdetto",
-        "modalità": "Modalità",
-    },
-    hide_index=True,
-    use_container_width=True,
-    height=min(45 * len(filtered) + 35, 600),
-)
-
-# ── Expander dettaglio per fonte ──────────────────────────────────
-with st.expander("🔍 Vedi dettaglio completo per fonte"):
-    for _, row in filtered.iterrows():
-        src_id = row["id"]
-        radar_s = radar_map.get(src_id, {})
-        src_data = registry.get(src_id, {})
-        inv = inventory_sources.get(src_id, {})
-        sig = signals_map.get(src_id, {})
-
-        http_code = radar_s.get("http_code", "")
-        note = radar_s.get("note", "") or ""
-        streak = (radar_s.get("red_streak") or 0)
-        inv_rows = inv.get("rows", "")
-        inv_method = inv.get("method", "")
-        sig_topics = sig.get("topics", {})
-        topics_str = ", ".join(f"{k}={v}" for k, v in sig_topics.items())
-        sig_yr = sig.get("years_range", [])
-
-        st.markdown(f"**{src_id}** — {row['radar']} · inv {row['inventario']}")
-        cols = st.columns(3)
-        with cols[0]:
-            st.write(f"Protocollo: {src_data.get('protocol', '?')}")
-            st.write(f"Modalità: {src_data.get('observation_mode', '?')}")
-            st.write(f"Verdetto: {src_data.get('verdict', '?')}")
-        with cols[1]:
-            st.write(f"HTTP: {http_code}" if http_code else "")
-            if note:
-                st.write(f"Nota: {note}")
-            if streak:
-                st.write(f"Streak RED: {streak}g")
-        with cols[2]:
-            if inv_rows:
-                st.write(f"Inventario: {inv_rows} righe"
-                         f"{' · ' + inv_method if inv_method else ''}")
-            if sig:
-                st.write(f"Segnale: {row['segnale']} {row['azione']}")
-            if topics_str:
-                st.write(f"Topic: {topics_str}")
-            if sig_yr:
-                st.write(f"Anni: {sig_yr[0]}–{sig_yr[1]}")
-        st.markdown("---")
-
-st.markdown("---")
 data_freshness_note()
-
-st.caption(
-    "Fonti: source-observatory (sources_registry.yaml, radar_summary.json, "
-    "radar_history.json, catalog_signals.json) · "
-    "catalog_inventory_report.json (GCS) · pipeline_signals.json (DI)"
-)

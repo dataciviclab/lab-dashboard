@@ -13,8 +13,10 @@ PAGES = [
     "pages/02_Pipeline_Health.py",
     "pages/03_Copertura_Dati.py",
     "pages/04_Funnel_Candidate.py",
-    "pages/05_Source_Observatory.py",
-    "pages/06_Discussioni.py",
+    "pages/05_Radar.py",
+    "pages/06_Inventario.py",
+    "pages/07_Fonti.py",
+    "pages/08_Discussioni.py",
 ]
 
 
