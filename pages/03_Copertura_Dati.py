@@ -2,7 +2,7 @@
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_catalog, data_freshness_note, verify_parquet, download_parquet_csv
+from sources import load_catalog, data_freshness_note, verify_parquet
 
 st.title("Copertura dati")
 

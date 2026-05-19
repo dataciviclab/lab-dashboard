@@ -115,7 +115,7 @@ with tab1:
             with st.expander(title):
                 st.write(f"**Dettaglio:** {c['detail']}")
                 st.write(f"**Ultimo check:** {c['checked_at']}")
-                st.write(f"**Ultimo run:** ❌ fallito")
+                st.write("**Ultimo run:** ❌ fallito")
                 if c["run_url"]:
                     st.write(f"**Run CI:** [{c['run_url']}]({c['run_url']})")
     else:
