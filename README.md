@@ -4,7 +4,7 @@ Dashboard operativi interni di DataCivicLab.
 
 **Live**: [dataciviclab-dashboard.streamlit.app](https://dataciviclab-dashboard.streamlit.app/)
 
-Basato su **Streamlit** + **DuckDB** + **Altair**. Legge metadati da GitHub raw e dati live da GCS parquet via DuckDB HTTP.
+Basato su **Streamlit** + **DuckDB** + **Altair**. Legge metadati da GitHub raw, report da GCS e discussioni via GitHub GraphQL API.
 
 ## Setup
 
@@ -15,43 +15,45 @@ streamlit run app.py
 
 Apri http://localhost:8501
 
-## Sezioni
+## Navigazione
 
-| Pagina | Cosa mostra |
-|---|---|
-| **Vista d'insieme** | Metriche aggregate: count dataset, pipeline OK/warn/error, distribuzione per stage e tema |
-| **Dataset Explorer** | Browse e filtra il catalogo completo per stage e parola chiave |
-| **Pipeline Health** | Stato CI segnali da `pipeline_signals.json` con grafico a ciambella |
-| **Copertura dati** | Matrice anni×dataset letta live dai parquet GCS via DuckDB |
-| **Funnel Candidate** | Flusso SCOUTING → INTAKE → VALIDAZIONE → PUBBLICATI con tassi di conversione e rilevamento colli di bottiglia |
-| **Radar Fonti** | Salute live dei 23 portali monitorati (GREEN/YELLOW/RED) con distribuzione per protocollo |
-
-## Tema
-
-Streamlit supporta tema chiaro e scuro nativamente:
-
-☰ **Menu hamburger** (in alto a destra) → **Settings** → **Theme** → scegli **Dark** o **Light**
+| Sezione | Pagina | Cosa mostra |
+|---|---|---|
+| — | **Vista d'insieme** | Metriche globali: dataset, fonti attive, pipeline OK, discussioni recenti |
+| **Source Observatory** | **Stato e KPI** | Funnel SO (23→23→15→5→6), radar trend storico, tabella fonti unificata con inventario e segnali |
+| **Dataset Incubator** | **Pipeline CI** | Segnali CI, success rate run (passed/failed), candidate distribuite per fonte |
+| | **Funnel candidate** | Flusso SCOUTING → INTAKE → VALIDAZIONE → PUBBLICATI, tag compose |
+| | **Copertura dati** | Matrice anni×dataset letta live dai parquet GCS via DuckDB |
+| **Catalogo** | **Esplora dataset** | Browse catalogo con schema colonne (nome, tipo, ruolo) |
+| **Community** | **Discussioni** | GitHub Discussions del Lab via GraphQL API |
 
 ## Dati
 
-| Fonte | URL | Cosa contiene |
+| Fonte | Artifact | Consumato da |
 |---|---|---|
-| Metadati | `raw.githubusercontent.com/dataciviclab/dataset-incubator/main/registry/` | `clean_catalog.json`, `pipeline_signals.json` |
-| Radar | `raw.githubusercontent.com/dataciviclab/source-observatory/main/data/radar/` | `radar_summary.json`, `sources_registry.yaml` |
-| Dati live | `storage.googleapis.com/dataciviclab-clean/` | Parquet letti via DuckDB HTTP range requests |
+| **dataset-incubator** `registry/` | `clean_catalog.json`, `pipeline_signals.json` | Vista d'insieme, Pipeline CI, Funnel, Copertura, Explorer |
+| **source-observatory** `data/radar/` | `radar_summary.json`, `radar_history.json`, `sources_registry.yaml` | Source Observatory, Funnel |
+| **source-observatory** `data/catalog/` | `catalog_signals.json` | Source Observatory |
+| **source-observatory** GCS | `catalog_inventory_report.json` | Source Observatory (badge inventario) |
+| **GitHub GraphQL** | Discussions API | Vista d'insieme, Discussioni |
 
 ## Deploy
 
 Su **Streamlit Community Cloud**:
+
 1. Collega il repo GitHub
 2. App principale: `app.py`
 3. Python version: 3.12
 4. Deploy automatico a ogni push su `main`
 
+## CI
+
+Su ogni push/PR: `ruff` lint + `pytest` (17 test su `sources.py`).
+
 ## Stack
 
-- **Streamlit** — framework app
+- **Streamlit** — framework app, navigazione gerarchica (`st.navigation`)
 - **DuckDB** — query engine per parquet su GCS
-- **Altair** — chart declarativi
-- **Requests** — fetch metadati da GitHub raw
-- **PyYAML** — parsing sources_registry.yaml
+- **Altair** — chart dichiarativi (line chart, heatmap, ciambella, barre)
+- **Requests** — fetch metadati da GitHub raw e GCS
+- **PyYAML** — parsing `sources_registry.yaml`
