@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+markers = [
+    "smoke: Smoke test che richiede connettività di rete (HTTP reale).",
+]
+testpaths = ["tests"]
