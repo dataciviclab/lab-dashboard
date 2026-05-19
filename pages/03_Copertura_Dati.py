@@ -73,9 +73,18 @@ if st.button("🔍 Verifica su GCS"):
         try:
             result = verify_parquet(verify_slug, verify_year)
             if result["records"] >= 0:
+                parquet_url = (
+                    f"https://storage.googleapis.com/dataciviclab-clean"
+                    f"/{verify_slug}/{verify_year}"
+                    f"/{verify_slug}_{verify_year}_clean.parquet"
+                )
                 st.success(
                     f"✅ **{verify_slug}**/{verify_year} — "
                     f"**{result['records']:,}** record"
+                )
+                st.markdown(
+                    f"📥 **[Scarica parquet]({parquet_url})** "
+                    f"— {result['records']:,} righe, formato colonnare"
                 )
             else:
                 st.warning("⚠️ Parquet trovato ma 0 record")

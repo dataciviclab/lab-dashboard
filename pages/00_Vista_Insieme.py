@@ -168,41 +168,11 @@ st.markdown("---")
 # ══════════════════════════════════════════════════════════════════
 st.subheader("📚 Dataset Incubator")
 
-# -- Mini funnel --
-candidate_source_ids = set()
-for sig in sigs:
-    if sig.get("source_id"):
-        candidate_source_ids.add(sig["source_id"])
-
-n_scouting = n_registry
-n_candidate = len(candidate_source_ids)
-n_validation = n_incubating
-n_published_total = n_published
-
-max_funnel = max(n_scouting, n_candidate, n_validation, n_published_total, 1)
-
-funnel_stages = [
-    ("🔭 Scouting", n_scouting, "#94a3b8"),
-    ("📥 Candidati", n_candidate, "#3b82f6"),
-    ("🔬 Incubazione", n_validation, "#f59e0b"),
-    ("✅ Pubblicati", n_published_total, "#16a34a"),
-]
-
-for label, count, color in funnel_stages:
-    pct = count / max_funnel
-    cols = st.columns([2.5, 12])
-    with cols[0]:
-        st.write(f"**{label}**")
-    with cols[1]:
-        bar_html = f"""
-        <div style="border-radius:8px; height:28px; overflow:hidden;">
-            <div style="background:{color}; width:{pct*100:.0f}%; height:100%;
-                border-radius:8px; display:flex; align-items:center; padding-left:10px;">
-                <span style="font-weight:bold; font-size:14px;">{count}</span>
-            </div>
-        </div>
-        """
-        st.markdown(bar_html, unsafe_allow_html=True)
+st.markdown(
+    f"**{len(datasets)} dataset** ({n_published} pubblicati, "
+    f"{n_incubating} in incubazione) — "
+    f"il funnel completo è in **📥 Funnel candidate**."
+)
 
 # -- Dataset per stage --
 col_d1, col_d2 = st.columns(2)
@@ -229,6 +199,22 @@ with col_d2:
         stage = ds.get("stage", "?")
         emoji = {"published": "✅", "incubating": "🔬", "candidate": "📥"}.get(stage, "📄")
         st.write(f"{emoji} **{slug}** · {stage}")
+
+# -- Alert run falliti --
+run_failed = [s for s in sigs if s.get("sample_run", {}).get("status") == "failed"]
+if run_failed:
+    st.error(f"❌ **{len(run_failed)} candidate con run CI fallito** — da rivedere")
+    for s in run_failed:
+        slug = s["id"].replace("-", "_")
+        sr = s.get("sample_run", {}) or {}
+        run_url = sr.get("run_url", "")
+        label = s.get("label", slug)
+        detail = s.get("detail", "")
+        with st.expander(f"❌ **{label}**"):
+            st.write(f"**Dettaglio:** {detail}")
+            st.write(f"**Fonte:** {s.get('source_id', '?')}")
+            if run_url:
+                st.write(f"**Run CI:** [{run_url}]({run_url})")
 
 # -- Pipeline errors --
 if n_pipeline_err:
