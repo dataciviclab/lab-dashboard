@@ -1,4 +1,4 @@
-"""Pipeline Health — stato segnali CI con dettaglio ultimo run."""
+"""Pipeline Health — stato segnali CI, success rate e distribuzione per fonte."""
 import streamlit as st
 import altair as alt
 import pandas as pd
@@ -12,15 +12,22 @@ ok_count = sum(1 for s in sigs if s.get("status") == "ok")
 warn_count = sum(1 for s in sigs if s.get("status") == "warn")
 err_count = sum(1 for s in sigs if s.get("status") == "error")
 
-col1, col2, col3 = st.columns(3)
-col1.metric("✅ OK", ok_count)
+# Success rate run
+run_passed = sum(1 for s in sigs if s.get("sample_run", {}).get("status") == "passed")
+run_failed = sum(1 for s in sigs if s.get("sample_run", {}).get("status") == "failed")
+run_none = len(sigs) - run_passed - run_failed
+
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("✅ Segnali OK", ok_count)
 col2.metric("⚠️ Warning", warn_count)
 col3.metric("❌ Errori", err_count)
+col4.metric("🏃 Run passati", f"{run_passed}/{run_passed + run_failed}",
+            f"{run_failed} falliti · {run_none} senza run")
 
 st.markdown("---")
 st.subheader("Distribuzione")
 
-col_a, col_b = st.columns([1, 2])
+col_a, col_b = st.columns([1, 1.5])
 with col_a:
     status_df = pd.DataFrame([
         {"status": "OK", "count": ok_count},
@@ -30,25 +37,29 @@ with col_a:
     pie = alt.Chart(status_df).mark_arc(innerRadius=50).encode(
         theta=alt.Theta(field="count", type="quantitative"),
         color=alt.Color(
-            field="status",
-            type="nominal",
-            scale={
-                "domain": ["OK", "Warning", "Error"],
-                "range": ["#16a34a", "#fbbf24", "#dc2626"],
-            },
+            field="status", type="nominal",
+            scale={"domain": ["OK", "Warning", "Error"],
+                   "range": ["#16a34a", "#fbbf24", "#dc2626"]},
         ),
         tooltip=["status", "count"],
     ).properties(width=300, height=300)
     st.altair_chart(pie)
 
 with col_b:
-    st.subheader("Segnali")
-    for sig in sigs:
-        emoji = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(
-            sig.get("status", ""), "❓"
-        )
-        label = sig.get("label", "?")
-        st.write(f"{emoji} **{label}** — {sig.get('detail', '')}")
+    # Candidate per fonte
+    src_counts = {}
+    for s in sigs:
+        src = s.get("source_id") or "altre"
+        src_counts[src] = src_counts.get(src, 0) + 1
+    if src_counts:
+        src_df = pd.DataFrame([
+            {"fonte": s, "candidati": c}
+            for s, c in sorted(src_counts.items(), key=lambda x: -x[1])
+        ])
+        st.subheader("Candidate per fonte")
+        st.bar_chart(src_df.set_index("fonte"))
+    else:
+        st.info("Nessuna fonte")
 
 st.markdown("---")
 st.subheader("Dettaglio ultimo run")
@@ -60,7 +71,6 @@ for sig in sigs:
         sig.get("status", ""), "❓"
     )
 
-    # Badge run status
     run_status = sr.get("status", "")
     run_badge = {"passed": "✅ passato", "failed": "❌ fallito"}.get(
         run_status, "⚪ sconosciuto"

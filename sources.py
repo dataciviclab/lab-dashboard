@@ -24,34 +24,7 @@ SO_BASE = "https://raw.githubusercontent.com/dataciviclab/source-observatory/mai
 GCS_BASE = "https://storage.googleapis.com/dataciviclab-clean"
 
 
-# ── Sidebar comune (UI) ───────────────────────────────────────────────────────────
-def render_sidebar_common():
-    """Widget sidebar comuni a tutte le pagine."""
-    st.logo(LOGO_URL, size="large")
-    refresh = st.sidebar.toggle(
-        "🔄 Ricarica 60s",
-        value=st.session_state.get("autorefresh", False),
-        key="ar_global",
-    )
-    st.session_state.autorefresh = refresh
-    if refresh:
-        st.markdown(
-            '<meta http-equiv="refresh" content="60">',
-            unsafe_allow_html=True,
-        )
-    st.sidebar.markdown("---")
-    st.sidebar.caption("🌙 **Tema scuro**: ☰ → Settings → Theme")
-    st.sidebar.caption(
-        "💬 [Discussioni](https://github.com/dataciviclab/dataciviclab/discussions)"
-        " · [Explorer](https://dataciviclab.github.io/data-explorer/)"
-    )
-    st.sidebar.caption(
-        "📦 [dataset-incubator/registry]"
-        "(https://github.com/dataciviclab/dataset-incubator/tree/main/registry)"
-    )
-
-
-# ── Data fetching (puro, no st.*) ─────────────────────────────────────────────────
+# ── Data fetching ─────────────────────────────────────────────────────────────────
 _LAST_FETCH: dict[str, datetime] = {}
 
 
