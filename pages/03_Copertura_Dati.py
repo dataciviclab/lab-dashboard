@@ -2,7 +2,7 @@
 import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_catalog, data_freshness_note, verify_parquet
+from sources import load_catalog, data_freshness_note, verify_parquet, download_parquet_csv
 
 st.title("Copertura dati")
 
@@ -56,38 +56,35 @@ if not cov_df.empty:
             f"media **{n_avg:.1f}** anni/dataset"
         )
 
-# ── Download e verifica su GCS ────────────────────────────────────────────────
+# ── Verifica su GCS via DuckDB ────────────────────────────────────────────────
 st.markdown("---")
-st.subheader("Download e verifica parquet")
-
+st.subheader("Verifica parquet su GCS")
 st.markdown(
-    "Seleziona un dataset e un anno. "
-    "Il link al parquet è sempre disponibile; "
-    "puoi anche verificare se esiste e quanti record contiene."
+    "Seleziona un dataset e un anno per verificare se il parquet esiste "
+    "e quanti record contiene. Usa DuckDB per leggere direttamente da GCS."
 )
 
 slug_options = [ds.get("slug", "") for ds in datasets if ds.get("period", {}).get("start")]
 verify_slug = st.selectbox("Dataset", slug_options)
 verify_year = st.number_input("Anno", min_value=2010, max_value=2026, value=2023, step=1)
 
-# Link diretto sempre visibile
-parquet_url = (
-    f"https://storage.googleapis.com/dataciviclab-clean"
-    f"/{verify_slug}/{verify_year}"
-    f"/{verify_slug}_{verify_year}_clean.parquet"
-)
-st.link_button("📥 Scarica parquet", parquet_url, use_container_width=True, type="primary")
-
-st.markdown("oppure verifica prima se esiste:")
-
 if st.button("🔍 Verifica su GCS"):
     with st.spinner(f"Verifica {verify_slug}/{verify_year}..."):
         try:
             result = verify_parquet(verify_slug, verify_year)
             if result["records"] >= 0:
+                parquet_url = (
+                    f"https://storage.googleapis.com/dataciviclab-clean"
+                    f"/{verify_slug}/{verify_year}"
+                    f"/{verify_slug}_{verify_year}_clean.parquet"
+                )
                 st.success(
                     f"✅ **{verify_slug}**/{verify_year} — "
                     f"**{result['records']:,}** record"
+                )
+                st.markdown(
+                    f"📥 **[Scarica parquet]({parquet_url})** "
+                    f"— {result['records']:,} righe, formato colonnare"
                 )
             else:
                 st.warning("⚠️ Parquet trovato ma 0 record")
