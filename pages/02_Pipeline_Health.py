@@ -18,30 +18,37 @@ run_failed = sum(1 for s in sigs if s.get("sample_run", {}).get("status") == "fa
 run_none = len(sigs) - run_passed - run_failed
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("✅ Segnali OK", ok_count)
-col2.metric("⚠️ Warning", warn_count)
-col3.metric("❌ Errori", err_count)
-col4.metric("🏃 Run passati", f"{run_passed}/{run_passed + run_failed}",
-            f"{run_failed} falliti · {run_none} senza run")
+col1.metric("✅ Segnali OK", ok_count, "configurazione valida")
+col2.metric("🏃 Run passati", run_passed, f"{run_passed}/{ok_count} segnali")
+col3.metric("❌ Run falliti", run_failed,
+            f"{round(run_failed/(run_passed+run_failed)*100)}% dei run" if run_failed else "nessuno")
+col4.metric("⏳ Mai eseguiti", run_none, "senza run CI")
+
+if run_failed:
+    st.caption(
+        "⚠️ **Nota**: i run falliti sono segnali con configurazione valida "
+        "ma ultima esecuzione CI andata male (es. fonte irraggiungibile). "
+        "Vedi dettaglio sotto per i candidati coinvolti."
+    )
 
 st.markdown("---")
-st.subheader("Distribuzione")
+st.subheader("Distribuzione per stato run")
 
 col_a, col_b = st.columns([1, 1.5])
 with col_a:
-    status_df = pd.DataFrame([
-        {"status": "OK", "count": ok_count},
-        {"status": "Warning", "count": warn_count},
-        {"status": "Error", "count": err_count},
+    run_df = pd.DataFrame([
+        {"stato": "Passati", "count": run_passed},
+        {"stato": "Falliti", "count": run_failed},
+        {"stato": "Mai eseguiti", "count": run_none},
     ])
-    pie = alt.Chart(status_df).mark_arc(innerRadius=50).encode(
+    pie = alt.Chart(run_df).mark_arc(innerRadius=50).encode(
         theta=alt.Theta(field="count", type="quantitative"),
         color=alt.Color(
-            field="status", type="nominal",
-            scale={"domain": ["OK", "Warning", "Error"],
-                   "range": ["#16a34a", "#fbbf24", "#dc2626"]},
+            field="stato", type="nominal",
+            scale={"domain": ["Passati", "Falliti", "Mai eseguiti"],
+                   "range": ["#16a34a", "#dc2626", "#94a3b8"]},
         ),
-        tooltip=["status", "count"],
+        tooltip=["stato", "count"],
     ).properties(width=300, height=300)
     st.altair_chart(pie)
 
