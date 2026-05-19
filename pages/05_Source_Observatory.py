@@ -8,6 +8,7 @@ import pandas as pd
 from sources import (
     load_radar, load_radar_history, load_sources_registry,
     load_catalog_signals, load_inventory_report, load_signals,
+    load_check_coverage,
     data_freshness_note,
 )
 st.title("Source Observatory")
@@ -25,6 +26,7 @@ registry = load_sources_registry()
 catalog_signals = load_catalog_signals()
 inventory_report = load_inventory_report()
 pipeline_signals = load_signals()
+coverage_df = load_check_coverage()
 
 sources = radar.get("sources", [])
 status_counts = radar.get("status_counts", {})
@@ -36,6 +38,15 @@ sigs = pipeline_signals.get("signals", [])
 # Build maps
 radar_map = {s["id"]: s for s in sources}
 signals_map = {sig.get("source", ""): sig for sig in signals_list}
+coverage_map = {}
+if not coverage_df.empty:
+    for _, r in coverage_df.iterrows():
+        coverage_map[r["source_id"]] = {
+            "chk_items": int(r["chk_items"]),
+            "inv_items": int(r["inv_items"]),
+            "coverage_pct": round(r["chk_items"] / r["inv_items"] * 100, 1)
+            if r["inv_items"] else 0,
+        }
 candidate_source_ids = set()
 for sig in sigs:
     if sig.get("source_id"):
@@ -100,6 +111,91 @@ if radar.get("persistent_red", 0):
 
 st.caption(f"Ultimo probe radar: {generated_at} · "
            f"inventory: {n_inventory} fonti")
+st.markdown("---")
+
+# ── Copertura source check ────────────────────────────────────────
+st.subheader("Copertura source check")
+
+if not coverage_df.empty:
+    tot_inv = int(coverage_df["inv_items"].sum())
+    tot_chk = int(coverage_df["chk_items"].sum())
+    tot_reachable = int(coverage_df["reachable"].sum())
+    tot_candidates = int(coverage_df["candidates"].sum())
+    coverage_pct = round(tot_chk / tot_inv * 100, 1) if tot_inv else 0
+
+    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+    col_c1.metric("📦 Items inventario", f"{tot_inv:,}")
+    col_c2.metric("🔍 Items checked", f"{tot_chk:,}", f"{coverage_pct}% coverage")
+    col_c3.metric("✅ Raggiungibili", f"{tot_reachable:,}",
+                  f"{round(tot_reachable/tot_chk*100,1) if tot_chk else 0}%")
+    col_c4.metric("🎯 Intake candidate", f"{tot_candidates:,}",
+                  f"{round(tot_candidates/tot_chk*100,1) if tot_chk else 0}%")
+
+    # Bar chart orizzontale: inventario vs checked per fonte (top 10 per inv_items)
+    plot_df = coverage_df[coverage_df["inv_items"] > 0].copy()
+    plot_df["coverage_pct"] = (
+        (plot_df["chk_items"] / plot_df["inv_items"] * 100).round(1)
+    )
+    plot_df = plot_df.sort_values("inv_items", ascending=True).tail(15)
+
+    # Melt per barre affiancate
+    melt_df = plot_df.melt(
+        id_vars=["source_id", "coverage_pct"],
+        value_vars=["inv_items", "chk_items"],
+        var_name="tipo", value_name="items",
+    )
+    melt_df["tipo"] = melt_df["tipo"].map({
+        "inv_items": "Inventario", "chk_items": "Checked",
+    })
+
+    bars = alt.Chart(melt_df).mark_bar().encode(
+        x=alt.X("items:Q", title="Items"),
+        y=alt.Y("source_id:N", title=None, sort=plot_df["source_id"].tolist()),
+        color=alt.Color(
+            "tipo:N",
+            scale={"domain": ["Inventario", "Checked"],
+                   "range": ["#94a3b8", "#3b82f6"]},
+            title=None,
+        ),
+        tooltip=[
+            alt.Tooltip("source_id:N", title="Fonte"),
+            alt.Tooltip("tipo:N", title="Tipo"),
+            alt.Tooltip("items:Q", title="Items", format=","),
+            alt.Tooltip("coverage_pct:Q", title="Coverage %", format=".1f"),
+        ],
+    ).properties(height=320)
+
+    st.altair_chart(bars, use_container_width=True)
+
+    # Tabella compatta coverage
+    cov_table = coverage_df[coverage_df["inv_items"] > 0].copy()
+    cov_table["coverage_pct"] = (
+        (cov_table["chk_items"] / cov_table["inv_items"] * 100).round(1)
+    )
+    cov_table = cov_table.sort_values("inv_items", ascending=False).reset_index(drop=True)
+
+    st.dataframe(
+        cov_table,
+        column_config={
+            "source_id": "Fonte",
+            "inv_items": st.column_config.NumberColumn("Inventario", format="%d"),
+            "chk_items": st.column_config.NumberColumn("Checked", format="%d"),
+            "reachable": st.column_config.NumberColumn("Raggiungibili", format="%d"),
+            "candidates": st.column_config.NumberColumn("Candidate", format="%d"),
+            "coverage_pct": st.column_config.NumberColumn("Coverage %", format="%.1f"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        height=min(40 * len(cov_table) + 35, 480),
+    )
+else:
+    st.info("Dati copertura non disponibili.")
+
+st.caption(
+    "Fonte: catalog_inventory_latest.parquet × source_check_results.parquet su GCS. "
+    "Il coverage indica quanti items del catalogo sono stati effettivamente "
+    "scaricati e profilati da source-check."
+)
 st.markdown("---")
 
 # ── Radar trend ───────────────────────────────────────────────────
@@ -197,12 +293,19 @@ for src_id, src_data in registry.items():
     sig_badge = {"catalog-watch-ready": "📡",
                  "low signal": "🔉", "nessuna": ""}.get(sig_action, "?")
 
+    # Coverage (da source_check_results)
+    cov = coverage_map.get(src_id, {})
+    chk_items = cov.get("chk_items", 0)
+    cov_pct = cov.get("coverage_pct", 0)
+
     table_rows.append({
         "id": src_id,
         "protocollo": src_data.get("protocol", "?"),
         "radar": f"{radar_emoji} {radar_status}",
         "inventario": inv_badge,
         "item_count": inv.get("rows", ""),
+        "checked": chk_items if chk_items else "",
+        "coverage": f"{cov_pct}%" if cov_pct else "",
         "segnale": sig_badge,
         "azione": sig_action,
         "verdict": src_data.get("verdict", "?"),
@@ -237,6 +340,8 @@ st.dataframe(
         "radar": "Radar",
         "inventario": "Inv.",
         "item_count": st.column_config.NumberColumn("Item", format="%d"),
+        "checked": st.column_config.NumberColumn("Checked", format="%d"),
+        "coverage": "Coverage",
         "segnale": "Segnale",
         "verdict": "Verdetto",
         "modalità": "Modalità",
