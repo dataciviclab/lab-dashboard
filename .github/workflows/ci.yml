@@ -25,5 +25,9 @@ jobs:
       - name: Lint with ruff
         uses: astral-sh/ruff-action@v3
 
-      - name: Test with pytest
-        run: python -m pytest tests/ -v
+      - name: Test with pytest (fast)
+        run: python -m pytest tests/ -v -m "not smoke"
+
+      - name: Smoke test (rete, solo su main)
+        if: github.ref == 'refs/heads/main'
+        run: python -m pytest tests/ -v -m "smoke"
