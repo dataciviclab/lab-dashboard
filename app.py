@@ -26,7 +26,7 @@ st.logo("https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/stati
 # Navigazione gerarchica
 pages = {
     "": [
-        st.Page("pages/00_Vista_Insieme.py", title="Vista d'insieme", icon="📊"),
+        st.Page("pages/00_Vista_Insieme.py", title="Vista d'insieme", icon="📊", default=True),
     ],
     "Source Observatory": [
         st.Page("pages/05_Source_Observatory.py", title="Stato e KPI", icon="🔭"),
