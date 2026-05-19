@@ -59,13 +59,18 @@ published_datasets = []
 for sig in sigs:
     slug = sig["id"].replace("-", "_")
     if slug not in catalog_slugs:
+        sr = sig.get("sample_run", {}) or {}
+        tipo = "compose" if sig["id"].startswith("compose:") else "candidate"
         candidati.append({
             "slug": slug,
             "id": sig["id"],
             "source_id": sig.get("source_id", "?"),
             "status": sig.get("status", "?"),
             "detail": sig.get("detail", ""),
-            "last_run": sig.get("sample_run", {}).get("checked_at", "?"),
+            "checked_at": sr.get("checked_at", "?"),
+            "run_url": sr.get("run_url", ""),
+            "run_status": sr.get("status", ""),
+            "tipo": tipo,
         })
 
 for ds in datasets:
@@ -185,9 +190,19 @@ with tab2:
     st.caption("dataset.yml + pipeline CI, ma nessun clean parquet su GCS ancora")
     for c in candidati:
         e = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(c["status"], "❓")
-        with st.expander(f"{e} **{c['slug']}** — fonte: {c['source_id']}"):
+        tag = {"compose": "🧩 compose", "candidate": ""}.get(c["tipo"], "")
+        run_badge = {"passed": "✅", "failed": "❌"}.get(c["run_status"], "⚪")
+        title = f"{e} **{c['slug']}** — fonte: {c['source_id']}"
+        if tag:
+            title += f" · {tag}"
+        with st.expander(title):
             st.write(f"**Dettaglio:** {c['detail']}")
-            st.write(f"**Ultimo run CI:** {c['last_run']}")
+            st.write(f"**Ultimo check:** {c['checked_at']}")
+            st.write(f"**Ultimo run:** {run_badge} {c['run_status'] or '?'}")
+            if c["run_url"]:
+                st.write(f"**Link CI:** [{c['run_url']}]({c['run_url']})")
+            if c["tipo"] == "compose":
+                st.caption("🧩 Dataset compose (multi-fonte)")
 
 with tab3:
     st.caption("Clean parquet su GCS, in attesa di pubblicazione in Explorer")

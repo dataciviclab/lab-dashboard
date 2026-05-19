@@ -1,4 +1,4 @@
-"""Pipeline Health — stato segnali CI."""
+"""Pipeline Health — stato segnali CI con dettaglio ultimo run."""
 import streamlit as st
 import altair as alt
 import pandas as pd
@@ -49,6 +49,37 @@ with col_b:
         emoji = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(
             sig.get("status", ""), "❓"
         )
-        st.write(f"{emoji} **{sig.get('label', '?')}** — {sig.get('detail', '')}")
+        label = sig.get("label", "?")
+        st.write(f"{emoji} **{label}** — {sig.get('detail', '')}")
+
+st.markdown("---")
+st.subheader("Dettaglio ultimo run")
+
+for sig in sigs:
+    sr = sig.get("sample_run", {}) or {}
+    label = sig.get("label", "?")
+    status_emoji = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(
+        sig.get("status", ""), "❓"
+    )
+
+    # Badge run status
+    run_status = sr.get("status", "")
+    run_badge = {"passed": "✅ passato", "failed": "❌ fallito"}.get(
+        run_status, "⚪ sconosciuto"
+    )
+
+    checked_at = sr.get("checked_at", "")
+    run_url = sr.get("run_url", "")
+    run_year = sr.get("year", "")
+
+    with st.expander(f"{status_emoji} **{label}** — run: {run_badge}"):
+        st.write(f"**Dettaglio segnale:** {sig.get('detail', '')}")
+        if checked_at:
+            st.write(f"**Ultimo check:** {checked_at}")
+        if run_year:
+            st.write(f"**Anno testato:** {run_year}")
+        if run_url:
+            st.write(f"**Run CI:** [{run_url}]({run_url})")
+        st.write(f"**Source ID:** {sig.get('source_id', '?')}")
 
 data_freshness_note()
