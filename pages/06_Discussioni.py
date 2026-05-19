@@ -2,10 +2,8 @@
 import streamlit as st
 from sources import (
     load_recent_discussions, load_discussion_counts,
-    render_sidebar_common, data_freshness_note, _github_token,
+    data_freshness_note, _github_token,
 )
-
-render_sidebar_common()
 
 st.title("💬 Discussioni")
 

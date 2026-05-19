@@ -1,9 +1,7 @@
 """Dataset Explorer — browse e filtra il catalogo con schema colonne."""
 import pandas as pd
 import streamlit as st
-from sources import load_catalog, render_sidebar_common, data_freshness_note
-render_sidebar_common()
-
+from sources import load_catalog, data_freshness_note
 st.title("Dataset Explorer")
 
 catalog = load_catalog()

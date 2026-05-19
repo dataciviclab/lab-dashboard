@@ -1,9 +1,7 @@
 """Vista d'insieme — metriche aggregate da clean_catalog.json e pipeline_signals.json."""
 import streamlit as st
 import pandas as pd
-from sources import load_catalog, load_signals, render_sidebar_common, data_freshness_note
-render_sidebar_common()
-
+from sources import load_catalog, load_signals, data_freshness_note
 st.title("Vista d'insieme")
 
 catalog = load_catalog()

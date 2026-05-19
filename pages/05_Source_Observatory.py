@@ -8,10 +8,8 @@ import pandas as pd
 from sources import (
     load_radar, load_radar_history, load_sources_registry,
     load_catalog_signals, load_inventory_report, load_signals,
-    render_sidebar_common, data_freshness_note,
+    data_freshness_note,
 )
-render_sidebar_common()
-
 st.title("Source Observatory")
 
 st.markdown(
