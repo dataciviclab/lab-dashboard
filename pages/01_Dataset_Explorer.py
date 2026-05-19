@@ -1,4 +1,5 @@
-"""Dataset Explorer — browse e filtra il catalogo. Mostra campi reali di clean_catalog.json."""
+"""Dataset Explorer — browse e filtra il catalogo con schema colonne."""
+import pandas as pd
 import streamlit as st
 from sources import load_catalog, render_sidebar_common, data_freshness_note
 render_sidebar_common()
@@ -38,5 +39,20 @@ for ds in filtered:
         loc = ds.get("location", {})
         if loc.get("path"):
             st.write(f"**Path GCS:** `{loc['path']}`")
+
+        # Schema colonne
+        cols = ds.get("columns", [])
+        if cols:
+            st.markdown("**Schema colonne**")
+            col_df = pd.DataFrame([
+                {
+                    "colonna": c.get("name", "?"),
+                    "tipo": c.get("type", "?"),
+                    "ruolo": c.get("role", "?"),
+                    "descrizione": c.get("description", ""),
+                }
+                for c in cols
+            ])
+            st.dataframe(col_df, hide_index=True, use_container_width=True)
 
 data_freshness_note()
