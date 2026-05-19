@@ -216,6 +216,8 @@ if probes:
 
     if rows:
         hist_df = pd.DataFrame(rows)
+        # Deduplica: più probe nella stessa data gonfiano i conteggi
+        hist_df = hist_df.drop_duplicates(subset=["data", "fonte"], keep="last")
 
         # 1. Line chart: conteggi per stato nel tempo
         trend = (hist_df.groupby(["data", "stato"])
