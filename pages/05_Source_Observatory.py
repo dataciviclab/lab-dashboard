@@ -252,7 +252,7 @@ if probes:
         fonte_order = latest_status.sort_values("ordine")["fonte"].tolist()
 
         heat = alt.Chart(hist_df).mark_rect().encode(
-            x=alt.X("data:T", title="Data"),
+            x=alt.X("data:O", title="Data", axis=alt.Axis(labelAngle=-45)),
             y=alt.Y("fonte:N", title="Fonte", sort=fonte_order),
             color=alt.Color(
                 "stato:N",
@@ -260,7 +260,7 @@ if probes:
                        "range": ["#16a34a", "#fbbf24", "#dc2626", "#94a3b8"]},
                 title="Stato",
             ),
-            tooltip=["data:T", "fonte:N", "stato:N"],
+            tooltip=["data:O", "fonte:N", "stato:N"],
         ).properties(height=320)
         st.altair_chart(heat, use_container_width=True)
     else:
