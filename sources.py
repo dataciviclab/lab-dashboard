@@ -263,3 +263,18 @@ def verify_parquet(slug: str, year: int) -> dict:
         df = con.sql("SELECT COUNT(*) AS records FROM read_parquet(?)", params=[path]).df()
     records = int(df["records"].iloc[0])
     return {"slug": slug, "year": year, "records": records}
+
+
+def download_parquet_csv(slug: str, year: int, max_rows: int = 0) -> str:
+    """
+    Scarica un parquet da GCS e lo restituisce come stringa CSV.
+    max_rows=0 = tutte le righe (attenzione: dataset grandi).
+    Usa parametri DuckDB per evitare SQL injection.
+    """
+    path = f"{GCS_BASE}/{slug}/{year}/{slug}_{year}_clean.parquet"
+    with duckdb.connect() as con:
+        if max_rows > 0:
+            df = con.sql("SELECT * FROM read_parquet(?) LIMIT ?", params=[path, max_rows]).df()
+        else:
+            df = con.sql("SELECT * FROM read_parquet(?)", params=[path]).df()
+    return df.to_csv(index=False)
