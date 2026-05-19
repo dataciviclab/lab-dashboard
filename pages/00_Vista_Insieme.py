@@ -230,6 +230,22 @@ with col_d2:
         emoji = {"published": "✅", "incubating": "🔬", "candidate": "📥"}.get(stage, "📄")
         st.write(f"{emoji} **{slug}** · {stage}")
 
+# -- Alert run falliti --
+run_failed = [s for s in sigs if s.get("sample_run", {}).get("status") == "failed"]
+if run_failed:
+    st.error(f"❌ **{len(run_failed)} candidate con run CI fallito** — da rivedere")
+    for s in run_failed:
+        slug = s["id"].replace("-", "_")
+        sr = s.get("sample_run", {}) or {}
+        run_url = sr.get("run_url", "")
+        label = s.get("label", slug)
+        detail = s.get("detail", "")
+        with st.expander(f"❌ **{label}**"):
+            st.write(f"**Dettaglio:** {detail}")
+            st.write(f"**Fonte:** {s.get('source_id', '?')}")
+            if run_url:
+                st.write(f"**Run CI:** [{run_url}]({run_url})")
+
 # -- Pipeline errors --
 if n_pipeline_err:
     st.error(f"❌ **{n_pipeline_err} pipeline in errore** — controlla Pipeline CI per dettagli")
