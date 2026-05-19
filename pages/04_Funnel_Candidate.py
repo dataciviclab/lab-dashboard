@@ -156,7 +156,8 @@ tab1, tab2, tab3, tab4 = st.tabs(
 with tab1:
     st.markdown(
         "👉 Per dettaglio radar, inventario e segnali per fonte, "
-        "vedi **[Source Observatory](/Source_Observatory)**."
+        "vedi **📡 Radar**, **📦 Inventario** o **🔍 Fonti e segnali** "
+        "nel menu Source Observatory."
     )
 
     verdict_filter = st.selectbox(

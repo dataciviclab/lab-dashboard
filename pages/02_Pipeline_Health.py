@@ -3,7 +3,7 @@ import streamlit as st
 import altair as alt
 import pandas as pd
 from sources import load_signals, data_freshness_note
-st.title("Pipeline Health")
+st.title("⚙️ Pipeline CI")
 
 signals = load_signals()
 sigs = signals.get("signals", [])
