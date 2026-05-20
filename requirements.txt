@@ -7,4 +7,4 @@ pyyaml>=6.0
 pytest>=8.0
 
 # Path contract GCS — vedere lab-connectors/gcs/paths.py
-lab-connectors @ git+https://github.com/dataciviclab/lab-connectors.git@4e0c66c
+lab-connectors @ git+https://github.com/dataciviclab/lab-connectors.git@v0.9.0
