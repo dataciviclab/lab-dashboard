@@ -2,6 +2,9 @@
 Fonti dati condivise per il dashboard.
 Legge da GitHub raw (metadati) e, opzionalmente, GCS parquet via DuckDB.
 
+I path GCS seguono il path contract canonico definito in:
+    lab-connectors/lab_connectors/gcs/paths.py  (paths.json)
+
 I loader usano st.cache_data e mostrano errori con st.error() per robustezza
 in produzione Streamlit. I fallback su dict/list vuoti evitano crash di pagina.
 """
@@ -17,11 +20,13 @@ from urllib3.util.retry import Retry
 import streamlit as st
 import yaml
 
+from lab_connectors.gcs.paths import CLEAN_BUCKET, https_url
+
 LOGO_URL = "https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg"
 
 REGISTRY_BASE = "https://raw.githubusercontent.com/dataciviclab/dataset-incubator/main/registry"
 SO_BASE = "https://raw.githubusercontent.com/dataciviclab/source-observatory/main"
-GCS_BASE = "https://storage.googleapis.com/dataciviclab-clean"
+GCS_BASE = f"https://storage.googleapis.com/{CLEAN_BUCKET}"
 
 
 # ── Data fetching ─────────────────────────────────────────────────────────────────
@@ -123,7 +128,7 @@ def load_inventory_report():
     Usato in 05_Radar.py e 07_Fonti.py per badge ✅/❌ e tabella fonti.
     """
     try:
-        return _fetch_json(f"{GCS_BASE}/catalog_inventory/catalog_inventory_report.json")
+        return _fetch_json(https_url("clean", "catalog_inventory_report"))
     except Exception as e:
         st.error(f"❌ Report inventario non disponibile: {e}")
         return {}
@@ -137,8 +142,8 @@ def load_check_coverage():
     Ritorna DataFrame con: source_id, inv_items, chk_items, reachable, candidates.
     """
     try:
-        inv_url = f"{GCS_BASE}/catalog_inventory/catalog_inventory_latest.parquet"
-        chk_url = f"{GCS_BASE}/catalog_inventory/source-check/source_check_results.parquet"
+        inv_url = https_url("clean", "catalog_inventory_latest")
+        chk_url = https_url("clean", "catalog_inventory_source_check")
         with duckdb.connect() as con:
             return con.sql(f"""
                 SELECT COALESCE(i.source_id, c.source_id) AS source_id,
@@ -258,7 +263,7 @@ def verify_parquet(slug: str, year: int) -> dict:
     Usa parametri DuckDB, non f-string, per evitare SQL injection.
     Ritorna {'slug': ..., 'year': ..., 'records': N} o solleva eccezione.
     """
-    path = f"{GCS_BASE}/{slug}/{year}/{slug}_{year}_clean.parquet"
+    path = https_url("clean", "clean_parquet", slug=slug, year=year)
     with duckdb.connect() as con:
         df = con.sql("SELECT COUNT(*) AS records FROM read_parquet(?)", params=[path]).df()
     records = int(df["records"].iloc[0])
@@ -271,7 +276,7 @@ def download_parquet_csv(slug: str, year: int, max_rows: int = 0) -> str:
     max_rows=0 = tutte le righe (attenzione: dataset grandi).
     Usa parametri DuckDB per evitare SQL injection.
     """
-    path = f"{GCS_BASE}/{slug}/{year}/{slug}_{year}_clean.parquet"
+    path = https_url("clean", "clean_parquet", slug=slug, year=year)
     with duckdb.connect() as con:
         if max_rows > 0:
             df = con.sql("SELECT * FROM read_parquet(?) LIMIT ?", params=[path, max_rows]).df()
