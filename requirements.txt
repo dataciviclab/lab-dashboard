@@ -7,5 +7,4 @@ pyyaml>=6.0
 pytest>=8.0
 
 # Path contract GCS — vedere lab-connectors/gcs/paths.py
-# Per CI sostituire con: git+https://github.com/dataciviclab/lab-connectors.git
--e ../lab-connectors
+lab-connectors @ git+https://github.com/dataciviclab/lab-connectors.git@4e0c66c
