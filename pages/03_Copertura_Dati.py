@@ -3,6 +3,7 @@ import streamlit as st
 import altair as alt
 import pandas as pd
 from sources import load_catalog, data_freshness_note, verify_parquet
+from lab_connectors.gcs.paths import https_url
 
 st.title("Copertura dati")
 
@@ -73,10 +74,8 @@ if st.button("🔍 Verifica su GCS"):
         try:
             result = verify_parquet(verify_slug, verify_year)
             if result["records"] >= 0:
-                parquet_url = (
-                    f"https://storage.googleapis.com/dataciviclab-clean"
-                    f"/{verify_slug}/{verify_year}"
-                    f"/{verify_slug}_{verify_year}_clean.parquet"
+                parquet_url = https_url(
+                    "clean", "clean_parquet", slug=verify_slug, year=verify_year
                 )
                 st.success(
                     f"✅ **{verify_slug}**/{verify_year} — "
