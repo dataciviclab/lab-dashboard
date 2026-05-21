@@ -1,8 +1,14 @@
 """
 Test per le pagine Streamlit: esistenza, compilazione, smoke test.
+
+Contratto: Ogni pagina e' un modulo Python valido (compila, ha AST).
+  test_home_page_loads e' uno smoke test di integrazione.
+
+Prova del fuoco: se cancello questi test, una pagina con sintassi rotta
+puo' arrivare in produzione senza preavviso.
 """
-import py_compile
 import ast
+import py_compile
 
 import pytest
 
@@ -20,12 +26,14 @@ PAGES = [
 ]
 
 
+@pytest.mark.contract
 @pytest.mark.parametrize("path", PAGES)
 def test_page_compiles(path):
     """Ogni pagina deve essere sintatticamente corretta."""
     py_compile.compile(path, doraise=True)
 
 
+@pytest.mark.contract
 @pytest.mark.parametrize("path", PAGES)
 def test_page_is_valid_python(path):
     """Ogni pagina deve essere un modulo Python valido (AST parse)."""

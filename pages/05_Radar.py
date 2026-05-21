@@ -2,14 +2,20 @@
 Radar — salute e trend del monitoraggio fonti.
 Funnel delle fonti, stato radar GREEN/YELLOW/RED, trend storico.
 """
-import streamlit as st
 import altair as alt
 import pandas as pd
+import streamlit as st
+
 from sources import (
-    load_radar, load_radar_history, load_sources_registry,
-    load_inventory_report, load_catalog_signals, load_signals,
     data_freshness_note,
+    load_catalog_signals,
+    load_inventory_report,
+    load_radar,
+    load_radar_history,
+    load_signals,
+    load_sources_registry,
 )
+
 st.title("📡 Radar")
 
 st.markdown(

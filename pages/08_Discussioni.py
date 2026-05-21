@@ -1,8 +1,11 @@
 """Discussioni — tutte le conversazioni pubbliche del Lab."""
 import streamlit as st
+
 from sources import (
-    load_recent_discussions, load_discussion_counts,
-    data_freshness_note, _github_token,
+    _github_token,
+    data_freshness_note,
+    load_discussion_counts,
+    load_recent_discussions,
 )
 
 st.title("💬 Discussioni")

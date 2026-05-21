@@ -1,9 +1,10 @@
 """Copertura dati — anni per dataset dal catalogo, con verifica opzionale su GCS via DuckDB."""
-import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_catalog, data_freshness_note, verify_parquet
+import streamlit as st
 from lab_connectors.gcs.paths import https_url
+
+from sources import data_freshness_note, load_catalog, verify_parquet
 
 st.title("Copertura dati")
 

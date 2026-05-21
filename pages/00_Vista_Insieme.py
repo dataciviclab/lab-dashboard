@@ -2,16 +2,22 @@
 Vista d'insieme — polso del DataCivicLab.
 Metriche e stato da Source Observatory, Dataset Incubator e Community.
 """
-import streamlit as st
 import altair as alt
 import pandas as pd
+import streamlit as st
+
 from sources import (
-    load_radar, load_sources_registry, load_check_coverage,
-    load_inventory_report, load_catalog_signals,
-    load_catalog, load_signals,
-    load_discussion_counts,
     data_freshness_note,
+    load_catalog,
+    load_catalog_signals,
+    load_check_coverage,
+    load_discussion_counts,
+    load_inventory_report,
+    load_radar,
+    load_signals,
+    load_sources_registry,
 )
+
 st.title("DataCivicLab · Dashboard")
 
 st.markdown(

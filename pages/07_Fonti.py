@@ -2,13 +2,18 @@
 Fonti e segnali — dettaglio per fonte, filtri, segnali catalog-watch.
 Tabella unificata con radar, inventario, coverage e verdict.
 """
-import streamlit as st
 import pandas as pd
+import streamlit as st
+
 from sources import (
-    load_radar, load_sources_registry, load_inventory_report,
-    load_catalog_signals, load_check_coverage,
     data_freshness_note,
+    load_catalog_signals,
+    load_check_coverage,
+    load_inventory_report,
+    load_radar,
+    load_sources_registry,
 )
+
 st.title("🔍 Fonti e segnali")
 
 st.markdown(

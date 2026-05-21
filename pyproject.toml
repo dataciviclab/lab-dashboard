@@ -1,5 +1,17 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "W"]
+
 [tool.pytest.ini_options]
 markers = [
-    "smoke: Smoke test che richiede connettività di rete (HTTP reale).",
+    "contract: interfaccia pubblica, contratto API, path contract, formato output",
+    "policy: regola Lab non ovvia",
+    "regression: bug fix documentato in issue/PR",
+    "adapter: adapter a servizio esterno (HTTP, DuckDB, GraphQL)",
+    "pure_unit: logica pura non banale, zero side effect",
+    "smoke: Smoke test che richiede connettivita' di rete (HTTP reale).",
 ]
 testpaths = ["tests"]

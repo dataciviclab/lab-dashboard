@@ -15,12 +15,11 @@ from typing import Any, Optional
 import duckdb
 import pandas as pd
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import streamlit as st
 import yaml
-
 from lab_connectors.gcs.paths import CLEAN_BUCKET, https_url
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 LOGO_URL = "https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg"
 
