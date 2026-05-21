@@ -1,8 +1,10 @@
 """Pipeline Health — stato segnali CI, success rate e distribuzione per fonte."""
-import streamlit as st
 import altair as alt
 import pandas as pd
-from sources import load_signals, data_freshness_note
+import streamlit as st
+
+from sources import data_freshness_note, load_signals
+
 st.title("⚙️ Pipeline CI")
 
 signals = load_signals()

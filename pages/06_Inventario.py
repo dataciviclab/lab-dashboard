@@ -2,13 +2,16 @@
 Inventario — items nei cataloghi e copertura source check.
 Quanto abbiamo censito e quanto abbiamo effettivamente controllato.
 """
-import streamlit as st
 import altair as alt
 import pandas as pd
+import streamlit as st
+
 from sources import (
-    load_check_coverage, load_inventory_report,
     data_freshness_note,
+    load_check_coverage,
+    load_inventory_report,
 )
+
 st.title("📦 Inventario")
 
 st.markdown(

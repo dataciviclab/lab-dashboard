@@ -3,7 +3,9 @@ Funnel candidate — pipeline dei dataset: da candidate a pubblicati.
 Visione d'insieme del flusso intake → incubazione → pubblicazione.
 """
 import streamlit as st
-from sources import load_catalog, load_signals, data_freshness_note
+
+from sources import data_freshness_note, load_catalog, load_signals
+
 st.title("📥 Funnel candidate")
 
 st.markdown(
