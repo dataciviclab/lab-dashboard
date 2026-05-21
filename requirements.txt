@@ -5,7 +5,7 @@ duckdb>=1.5.3
 requests>=2.28.0
 pyyaml>=6.0.3
 pytest>=8.0
-pytest-cov>=5.0.0
+pytest-cov>=7.1.0
 
 # Path contract GCS — vedere lab-connectors/gcs/paths.py
 lab-connectors @ git+https://github.com/dataciviclab/lab-connectors.git@v0.10.0
