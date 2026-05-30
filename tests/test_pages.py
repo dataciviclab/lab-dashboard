@@ -62,8 +62,8 @@ def test_home_page_loads():
 
 def _build_query(user_sql: str, cte_expr: str, max_rows: int) -> str:
     """Replica la logica pura di pages/09_Query_SQL._build_query.
-    
-    Mantenuta come funzione a sé stante per testare il contratto SQL 
+
+    Mantenuta come funzione a sé stante per testare il contratto SQL
     senza importare il modulo Streamlit (che richiede runtime).
     """
     return (
