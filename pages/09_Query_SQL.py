@@ -17,7 +17,7 @@ from lab_connectors.gcs.paths import https_url
 
 from sources import data_freshness_note, load_catalog
 
-st.title(":material/database: Query SQL")
+st.title("🧪 Query SQL")
 st.markdown(
     "Scrivi query **SQL** sui dataset pubblici. "
     "Usa ``clean_input`` come nome della tabella virtuale — "

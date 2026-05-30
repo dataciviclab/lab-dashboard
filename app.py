@@ -19,9 +19,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Logo in alto a sinistra
-st.logo("https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg",
-        size="large")
+# Logo + nome Lab in alto a sinistra
+st.logo(
+    "https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg",
+    size="large",
+)
 
 # Navigazione gerarchica
 pages = {
@@ -31,45 +33,20 @@ pages = {
     "Source Observatory": [
         st.Page("pages/05_Radar.py", title="Radar", icon="📡"),
         st.Page("pages/06_Inventario.py", title="Inventario", icon="📦"),
-        st.Page("pages/07_Fonti.py", title="Fonti e segnali", icon="🔍"),
     ],
     "Dataset Incubator": [
-        st.Page("pages/02_Pipeline_Health.py", title="Pipeline CI", icon="⚙️"),
-        st.Page("pages/04_Funnel_Candidate.py", title="Funnel candidate", icon="📥"),
-        st.Page("pages/03_Copertura_Dati.py", title="Copertura dati", icon="📅"),
+        st.Page("pages/02_Pipeline_Health.py", title="Pipeline candidate", icon="⚙️"),
     ],
     "Catalogo": [
         st.Page("pages/01_Dataset_Explorer.py", title="Esplora dataset", icon="📚"),
         st.Page("pages/09_Query_SQL.py", title="Query SQL", icon="🧪"),
     ],
-    "Community": [
-        st.Page("pages/08_Discussioni.py", title="Discussioni", icon="💬"),
-    ],
 }
 
 pg = st.navigation(pages, position="sidebar")
 
-# Sidebar comune: widget sotto il menu di navigazione
-refresh = st.sidebar.toggle(
-    "🔄 Ricarica 60s",
-    value=st.session_state.get("autorefresh", False),
-    key="ar_global",
-)
-st.session_state.autorefresh = refresh
-if refresh:
-    st.markdown(
-        '<meta http-equiv="refresh" content="60">',
-        unsafe_allow_html=True,
-    )
-st.sidebar.markdown("---")
-st.sidebar.caption("🌙 **Tema scuro**: ☰ → Settings → Theme")
-st.sidebar.caption(
-    "💬 [Discussioni](https://github.com/dataciviclab/dataciviclab/discussions)"
-    " · [Explorer](https://dataciviclab.github.io/data-explorer/)"
-)
-st.sidebar.caption(
-    "📦 [dataset-incubator/registry]"
-    "(https://github.com/dataciviclab/dataset-incubator/tree/main/registry)"
-)
+st.sidebar.caption("")  # spazio leggero
+st.sidebar.caption("[DataCivicLab](https://dataciviclab.org/) · [Explorer](https://dataciviclab.github.io/data-explorer/)")
+st.sidebar.caption("[Discussioni](https://github.com/dataciviclab/dataciviclab/discussions) · [GitHub](https://github.com/dataciviclab)")
 
 pg.run()
