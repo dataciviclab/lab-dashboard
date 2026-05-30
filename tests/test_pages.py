@@ -23,6 +23,7 @@ PAGES = [
     "pages/06_Inventario.py",
     "pages/07_Fonti.py",
     "pages/08_Discussioni.py",
+    "pages/09_Query_SQL.py",
 ]
 
 
