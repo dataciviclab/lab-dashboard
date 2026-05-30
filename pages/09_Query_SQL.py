@@ -32,23 +32,45 @@ st.markdown(
 def _resolve_slug(slug: str) -> tuple[list[str], str, dict[str, Any]]:
     """Risolve slug → (urls, cte_expr, dataset_info).
 
+    Gestisce due pattern dal catalogo:
+    - ``multi_file=True``: un Parquet per anno → lista URL per tutti gli anni
+    - ``multi_file=False``: un unico file multi-anno → URL dal path del catalogo
+
     La CTE expression è pronta per essere usata in:
         WITH clean_input AS ({cte_expr}) SELECT ...
     """
     catalog = load_catalog()
     for ds in catalog.get("datasets", []):
         if ds["slug"] == slug:
-            period = ds.get("period", {})
-            start = period.get("start")
-            end = period.get("end")
-            if not start or not end:
-                raise ValueError(f"Periodo non definito per '{slug}' nel catalogo")
+            loc = ds.get("location", {})
+            multi = loc.get("multi_file", True)
 
-            years = list(range(start, end + 1))
-            urls = [
-                https_url("clean", "clean_parquet", slug=slug, year=y)
-                for y in years
-            ]
+            if multi:
+                # Un Parquet per anno: costruisce URL per ogni anno
+                period = ds.get("period", {})
+                start = period.get("start")
+                end = period.get("end")
+                if not start or not end:
+                    raise ValueError(
+                        f"Periodo non definito per '{slug}' nel catalogo"
+                    )
+                years = list(range(start, end + 1))
+                urls = [
+                    https_url("clean", "clean_parquet", slug=slug, year=y)
+                    for y in years
+                ]
+            else:
+                # Singolo file multi-anno: prende il path dal catalogo
+                gcs_path = loc.get("path", "")
+                if not gcs_path:
+                    raise ValueError(
+                        f"Path non definito per '{slug}' nel catalogo"
+                    )
+                # Converte gs://BUCKET/PATH → https://storage.googleapis.com/BUCKET/PATH
+                https_path = gcs_path.replace(
+                    "gs://", "https://storage.googleapis.com/", 1
+                )
+                urls = [https_path]
 
             if len(urls) == 1:
                 cte_expr = f"SELECT * FROM read_parquet('{urls[0]}')"
