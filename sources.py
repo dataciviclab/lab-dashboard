@@ -187,38 +187,6 @@ def _github_token():
         return os.environ.get("GITHUB_TOKEN")
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def load_recent_discussions(limit: int = 5):
-    """
-    Recupera le ultime discussion dal repo dataciviclab/dataciviclab.
-    Usa GraphQL API. Se non c'è token, restituisce lista vuota.
-    """
-    token = _github_token()
-    if not token:
-        return []
-
-    query = {
-        "query": f"""{{ repository(owner: "dataciviclab", name: "dataciviclab") {{
-            discussions(first: {limit}, orderBy: {{field: CREATED_AT, direction: DESC}}) {{
-                totalCount
-                nodes {{ title createdAt category {{ name }} url }}
-            }}
-        }} }}"""
-    }
-
-    try:
-        r = requests.post(
-            "https://api.github.com/graphql",
-            json=query,
-            headers={"Authorization": f"bearer {token}"},
-            timeout=10,
-        )
-        data = r.json()
-        return data.get("data", {}).get("repository", {}).get("discussions", {}).get("nodes", [])
-    except Exception:
-        return []
-
-
 def load_discussion_counts():
     """
     Ritorna conteggi per categoria: {'totale': N, 'domande': N, 'analisi': N, ...}
@@ -269,16 +237,4 @@ def verify_parquet(slug: str, year: int) -> dict:
     return {"slug": slug, "year": year, "records": records}
 
 
-def download_parquet_csv(slug: str, year: int, max_rows: int = 0) -> str:
-    """
-    Scarica un parquet da GCS e lo restituisce come stringa CSV.
-    max_rows=0 = tutte le righe (attenzione: dataset grandi).
-    Usa parametri DuckDB per evitare SQL injection.
-    """
-    path = https_url("clean", "clean_parquet", slug=slug, year=year)
-    with duckdb.connect() as con:
-        if max_rows > 0:
-            df = con.sql("SELECT * FROM read_parquet(?) LIMIT ?", params=[path, max_rows]).df()
-        else:
-            df = con.sql("SELECT * FROM read_parquet(?)", params=[path]).df()
-    return df.to_csv(index=False)
+

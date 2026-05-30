@@ -8,8 +8,11 @@ import streamlit as st
 
 from sources import (
     data_freshness_note,
+    load_catalog_signals,
     load_check_coverage,
     load_inventory_report,
+    load_radar,
+    load_sources_registry,
 )
 
 st.title("📦 Inventario")
@@ -43,100 +46,192 @@ if not coverage_df.empty:
     col_c4.metric("🎯 Intake candidate", f"{tot_candidates:,}",
                   f"{round(tot_candidates/tot_chk*100,1) if tot_chk else 0}%")
 
-    # Bar chart orizzontale: inventario vs checked per fonte
+    # Bar chart orizzontale: inventario (grigio) con checked (blu) dentro
     plot_df = coverage_df[coverage_df["inv_items"] > 0].copy()
     plot_df["coverage_pct"] = (
         (plot_df["chk_items"] / plot_df["inv_items"] * 100).round(1)
     )
     plot_df = plot_df.sort_values("inv_items", ascending=True).tail(15)
 
-    melt_df = plot_df.melt(
-        id_vars=["source_id", "coverage_pct"],
-        value_vars=["inv_items", "chk_items"],
-        var_name="tipo", value_name="items",
-    )
-    melt_df["tipo"] = melt_df["tipo"].map({
-        "inv_items": "Inventario", "chk_items": "Checked",
-    })
-
-    bars = alt.Chart(melt_df).mark_bar().encode(
-        x=alt.X("items:Q", title="Items"),
-        y=alt.Y("source_id:N", title=None, sort=plot_df["source_id"].tolist()),
-        color=alt.Color(
-            "tipo:N",
-            scale={"domain": ["Inventario", "Checked"],
-                   "range": ["#94a3b8", "#3b82f6"]},
-            title=None,
-        ),
+    inv_bars = alt.Chart(plot_df).mark_bar(color="#94a3b8").encode(
+        x=alt.X("inv_items:Q", title="Items"),
+        y=alt.Y("source_id:N", title=None,
+                sort=plot_df["source_id"].tolist()),
         tooltip=[
             alt.Tooltip("source_id:N", title="Fonte"),
-            alt.Tooltip("tipo:N", title="Tipo"),
-            alt.Tooltip("items:Q", title="Items", format=","),
+            alt.Tooltip("inv_items:Q", title="Inventario", format=","),
+            alt.Tooltip("chk_items:Q", title="Checked", format=","),
             alt.Tooltip("coverage_pct:Q", title="Coverage %", format=".1f"),
         ],
-    ).properties(height=320)
-
-    st.altair_chart(bars, use_container_width=True)
-
-    # Tabella compatta coverage
-    cov_table = coverage_df[coverage_df["inv_items"] > 0].copy()
-    cov_table["coverage_pct"] = (
-        (cov_table["chk_items"] / cov_table["inv_items"] * 100).round(1)
     )
-    cov_table = cov_table.sort_values("inv_items", ascending=False).reset_index(drop=True)
 
-    st.dataframe(
-        cov_table,
-        column_config={
-            "source_id": "Fonte",
-            "inv_items": st.column_config.NumberColumn("Inventario", format="%d"),
-            "chk_items": st.column_config.NumberColumn("Checked", format="%d"),
-            "reachable": st.column_config.NumberColumn("Raggiungibili", format="%d"),
-            "candidates": st.column_config.NumberColumn("Candidate", format="%d"),
-            "coverage_pct": st.column_config.NumberColumn("Coverage %", format="%.1f"),
-        },
-        hide_index=True,
-        use_container_width=True,
-        height=min(40 * len(cov_table) + 35, 480),
+    chk_bars = alt.Chart(plot_df).mark_bar(color="#3b82f6").encode(
+        x=alt.X("chk_items:Q"),
+        y=alt.Y("source_id:N", title=None,
+                sort=plot_df["source_id"].tolist()),
     )
+
+    layered = (inv_bars + chk_bars).properties(height=320)
+
+    st.altair_chart(layered, use_container_width=True)
+
 else:
     st.info("Dati copertura non disponibili.")
 
-st.caption(
-    "Fonte: catalog_inventory_latest.parquet × source_check_results.parquet su GCS. "
-    "Il coverage indica quanti items del catalogo sono stati effettivamente "
-    "scaricati e profilati da source-check."
-)
 st.markdown("---")
 
-# ── Report inventario per fonte ───────────────────────────────────
-st.subheader("Stato inventario per fonte")
+# ── Dettaglio fonti (unificato: radar + inventario + coverage + segnali) ──
+st.subheader("Dettaglio fonti")
 
-inv_rows = []
-for src_id, src_data in inventory_sources.items():
-    badge = "✅" if src_data.get("status") == "ok" else "❌"
-    inv_rows.append({
-        "fonte": src_id,
-        "stato": badge,
-        "items": src_data.get("rows", ""),
-        "metodo": src_data.get("method", "") or "",
+radar = load_radar()
+registry = load_sources_registry()
+catalog_signals = load_catalog_signals()
+
+sources = radar.get("sources", [])
+signals_list = catalog_signals.get("signals", [])
+
+radar_map = {s["id"]: s for s in sources}
+signals_map = {sig.get("source", ""): sig for sig in signals_list}
+
+# Coverage map
+coverage_map = {}
+if not coverage_df.empty:
+    for _, r in coverage_df.iterrows():
+        coverage_map[r["source_id"]] = {
+            "chk_items": int(r["chk_items"]),
+            "inv_items": int(r["inv_items"]),
+            "coverage_pct": round(r["chk_items"] / r["inv_items"] * 100, 1)
+            if r["inv_items"] else 0,
+        }
+
+table_rows = []
+for src_id, src_data in registry.items():
+    radar_s = radar_map.get(src_id, {})
+    inv = inventory_sources.get(src_id, {})
+    sig = signals_map.get(src_id, {})
+
+    # Badge radar
+    radar_status = radar_s.get("status", "?")
+    radar_emoji = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(
+        radar_status, "⚪")
+
+    # Badge inventario
+    inv_status = inv.get("status", "")
+    inv_badge = ("✅" if inv_status == "ok"
+                 else ("❌" if inv_status == "error" else "—"))
+
+    # Segnale
+    sig_action = sig.get("suggested_action", "")
+    sig_badge = {"catalog-watch-ready": "📡",
+                 "low signal": "🔉", "nessuna": ""}.get(sig_action, "?")
+
+    # Coverage
+    cov = coverage_map.get(src_id, {})
+    chk_items = cov.get("chk_items", 0)
+    cov_pct = cov.get("coverage_pct", 0)
+
+    table_rows.append({
+        "id": src_id,
+        "protocollo": src_data.get("protocol", "?"),
+        "radar": f"{radar_emoji} {radar_status}",
+        "inventario": inv_badge,
+        "item_count": inv.get("rows", ""),
+        "checked": chk_items if chk_items else "",
+        "coverage": f"{cov_pct}%" if cov_pct else "",
+        "segnale": sig_badge,
+        "azione": sig_action,
+        "verdict": src_data.get("verdict", "?"),
+        "modalità": src_data.get("observation_mode", "?"),
     })
 
-if inv_rows:
-    inv_df = pd.DataFrame(inv_rows)
-    st.dataframe(
-        inv_df,
-        column_config={
-            "fonte": "Fonte",
-            "stato": "Stato",
-            "items": st.column_config.NumberColumn("Items", format="%d"),
-            "metodo": "Metodo",
-        },
-        hide_index=True,
-        use_container_width=True,
-        height=min(45 * len(inv_df) + 35, 500),
-    )
-else:
-    st.info("Dati inventario non disponibili.")
+df_table = pd.DataFrame(table_rows)
+
+# Filtri
+col_f1, col_f2, col_f3 = st.columns(3)
+with col_f1:
+    rf = st.selectbox("Filtra radar", ["Tutti", "GREEN", "YELLOW", "RED"],
+                      key="inv_filtro_radar")
+with col_f2:
+    vf = st.selectbox("Filtra verdict", ["Tutti", "go", "hold"],
+                      key="inv_filtro_verdict")
+with col_f3:
+    af = st.selectbox("Filtra azione segnale",
+                      ["Tutti", "catalog-watch-ready", "low signal", "nessuna"],
+                      key="inv_filtro_segnale")
+
+filtered = df_table
+if rf != "Tutti":
+    filtered = filtered[filtered["radar"].str.contains(rf)]
+if vf != "Tutti":
+    filtered = filtered[filtered["verdict"] == vf]
+if af != "Tutti":
+    filtered = filtered[filtered["azione"] == af]
+
+st.dataframe(
+    filtered.drop(columns=["azione"]),
+    column_config={
+        "id": "Fonte",
+        "protocollo": "Protocollo",
+        "radar": "Radar",
+        "inventario": "Inv.",
+        "item_count": st.column_config.NumberColumn("Item", format="%d"),
+        "checked": st.column_config.NumberColumn("Checked", format="%d"),
+        "coverage": "Coverage",
+        "segnale": "Segnale",
+        "verdict": "Verdetto",
+        "modalità": "Modalità",
+    },
+    hide_index=True,
+    use_container_width=True,
+    height=min(45 * len(filtered) + 35, 600),
+)
+
+# Expander dettaglio per fonte
+with st.expander("🔍 Vedi dettaglio completo per fonte"):
+    for _, row in filtered.iterrows():
+        src_id = row["id"]
+        radar_s = radar_map.get(src_id, {})
+        src_data = registry.get(src_id, {})
+        inv = inventory_sources.get(src_id, {})
+        sig = signals_map.get(src_id, {})
+
+        http_code = radar_s.get("http_code", "")
+        note = radar_s.get("note", "") or ""
+        streak = (radar_s.get("red_streak") or 0)
+        inv_rows = inv.get("rows", "")
+        inv_method = inv.get("method", "")
+        sig_topics = sig.get("topics", {})
+        topics_str = ", ".join(f"{k}={v}" for k, v in sig_topics.items())
+        sig_yr = sig.get("years_range", [])
+
+        st.markdown(f"**{src_id}** — {row['radar']} · inv {row['inventario']}")
+        cols = st.columns(3)
+        with cols[0]:
+            st.write(f"Protocollo: {src_data.get('protocol', '?')}")
+            st.write(f"Modalità: {src_data.get('observation_mode', '?')}")
+            st.write(f"Verdetto: {src_data.get('verdict', '?')}")
+        with cols[1]:
+            st.write(f"HTTP: {http_code}" if http_code else "")
+            if note:
+                st.write(f"Nota: {note}")
+            if streak:
+                st.write(f"Streak RED: {streak}g")
+        with cols[2]:
+            if inv_rows:
+                st.write(f"Inventario: {inv_rows} righe"
+                         f"{' · ' + inv_method if inv_method else ''}")
+            if sig:
+                st.write(f"Segnale: {row['segnale']} {row['azione']}")
+            if topics_str:
+                st.write(f"Topic: {topics_str}")
+            if sig_yr:
+                st.write(f"Anni: {sig_yr[0]}–{sig_yr[1]}")
+        st.markdown("---")
+
+st.caption(
+    "Fonti: source-observatory (sources_registry.yaml, radar_summary.json, "
+    "catalog_signals.json) · catalog_inventory_report.json (GCS) · "
+    "source_check_results.parquet (GCS)"
+)
 
 data_freshness_note()

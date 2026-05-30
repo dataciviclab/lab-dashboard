@@ -1,6 +1,6 @@
 """
 Radar — salute e trend del monitoraggio fonti.
-Funnel delle fonti, stato radar GREEN/YELLOW/RED, trend storico.
+Segnali radar GREEN/YELLOW/RED, trend storico, indicatori di salute.
 """
 import altair as alt
 import pandas as pd
@@ -8,20 +8,17 @@ import streamlit as st
 
 from sources import (
     data_freshness_note,
-    load_catalog_signals,
     load_inventory_report,
     load_radar,
     load_radar_history,
-    load_signals,
     load_sources_registry,
 )
 
 st.title("📡 Radar")
 
 st.markdown(
-    "Stato del monitoraggio delle fonti pubbliche: "
-    "dalla scoperta all'intake. "
-    "Il funnel mostra quante fonti arrivano a ogni stadio."
+    "Salute delle fonti monitorate dal Source Observatory: "
+    "stato radar (GREEN/YELLOW/RED) e trend storico dei probe."
 )
 
 # ── Carica dati ───────────────────────────────────────────────────
@@ -29,26 +26,14 @@ radar = load_radar()
 radar_history_data = load_radar_history()
 registry = load_sources_registry()
 inventory_report = load_inventory_report()
-catalog_signals = load_catalog_signals()
-pipeline_signals = load_signals()
 
 sources = radar.get("sources", [])
 status_counts = radar.get("status_counts", {})
 generated_at = radar.get("generated_at", "")
 inventory_sources = inventory_report.get("sources", {})
-signals_list = catalog_signals.get("signals", [])
-sigs = pipeline_signals.get("signals", [])
 
-radar_map = {s["id"]: s for s in sources}
-signals_map = {sig.get("source", ""): sig for sig in signals_list}
-
-candidate_source_ids = set()
-for sig in sigs:
-    if sig.get("source_id"):
-        candidate_source_ids.add(sig["source_id"])
-
-# ── Funnel SO ─────────────────────────────────────────────────────
-st.subheader("Funnel")
+# ── Metriche ──────────────────────────────────────────────────────
+st.subheader("Indicatori")
 
 n_registry = len(registry)
 n_radar = len(sources)
@@ -58,47 +43,13 @@ n_red = status_counts.get("RED", 0)
 n_inventory = len(inventory_sources)
 n_inventory_ok = sum(1 for v in inventory_sources.values() if v.get("status") == "ok")
 n_inventory_err = sum(1 for v in inventory_sources.values() if v.get("status") == "error")
-n_signaled = sum(1 for sig in signals_map.values()
-                 if sig.get("suggested_action") == "catalog-watch-ready")
-n_candidate = len(candidate_source_ids)
-
-max_n = max(n_registry, n_radar, n_inventory, n_signaled, n_candidate, 1)
-
-stages_info = [
-    ("📋 Registro fonti", n_registry, "#94a3b8"),
-    ("📡 Radar", n_radar, "#3b82f6"),
-    ("📦 Inventario", n_inventory, "#f59e0b"),
-    ("🎯 Pronto intake", n_signaled, "#8b5cf6"),
-    ("📥 Candidate SO→DI", n_candidate, "#16a34a"),
-]
-
-for label, count, color in stages_info:
-    pct = count / max_n
-    cols = st.columns([2.5, 12])
-    with cols[0]:
-        st.write(f"**{label}**")
-    with cols[1]:
-        bar_html = f"""
-        <div style="border-radius:8px; height:32px; overflow:hidden;">
-            <div style="background:{color}; width:{pct*100:.0f}%; height:100%;
-                border-radius:8px; display:flex; align-items:center; padding-left:10px;">
-                <span style="font-weight:bold; font-size:16px;">{count}</span>
-            </div>
-        </div>
-        """
-        st.markdown(bar_html, unsafe_allow_html=True)
-
-st.markdown("---")
-
-# ── Metriche ──────────────────────────────────────────────────────
-st.subheader("Indicatori")
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Totale fonti", n_registry, f"{n_radar} monitorate")
 col2.metric("🟢 GREEN", n_green, f"{n_yellow} YELLOW · {n_red} RED")
 col3.metric("📦 Inventario OK", f"{n_inventory_ok}/{n_inventory}",
             f"{n_inventory_err} errori" if n_inventory_err else "nessun errore")
-col4.metric("🎯 Pronto intake", n_signaled, f"{n_candidate} candidate")
+col4.metric("📡 Radar attivi", n_radar, None)
 
 if radar.get("persistent_red", 0):
     st.warning(f"🔴 **{radar['persistent_red']} fonte/i** "
