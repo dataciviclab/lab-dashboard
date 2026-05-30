@@ -40,6 +40,7 @@ pages = {
     ],
     "Catalogo": [
         st.Page("pages/01_Dataset_Explorer.py", title="Esplora dataset", icon="📚"),
+        st.Page("pages/09_Query_SQL.py", title="Query SQL", icon="🧪"),
     ],
     "Community": [
         st.Page("pages/08_Discussioni.py", title="Discussioni", icon="💬"),
