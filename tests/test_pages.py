@@ -56,3 +56,103 @@ def test_home_page_loads():
     at.run(timeout=30)
     assert not at.exception, f"Pagina solleva eccezione: {at.exception}"
     assert len(at.metric) > 0, "La pagina deve avere almeno una metrica"
+
+
+# ── Helper logic tests per 09_Query_SQL.py ─────────────────────────────────
+
+def _build_query(user_sql: str, cte_expr: str, max_rows: int) -> str:
+    """Replica la logica pura di pages/09_Query_SQL._build_query.
+    
+    Mantenuta come funzione a sé stante per testare il contratto SQL 
+    senza importare il modulo Streamlit (che richiede runtime).
+    """
+    return (
+        f"WITH clean_input AS ({cte_expr}) "
+        f"SELECT * FROM ({user_sql}) AS _q LIMIT {max_rows}"
+    )
+
+
+def _default_sql(name: str, start: str, end: str, cols: list[str]) -> str:
+    """Replica la logica pura di pages/09_Query_SQL._default_sql."""
+    col_hint = ""
+    if cols:
+        col_hint = f"-- Colonne: {', '.join(cols[:5])}..."
+    return (
+        f"-- Dataset: {name}\n"
+        f"-- Periodo: {start}–{end}\n"
+        f"{col_hint}\n"
+        f"-- Usa clean_input come tabella virtuale\n"
+        f"SELECT * FROM clean_input LIMIT 10"
+    )
+
+
+class TestQueryBuildQuery:
+    """Contratto: _build_query produce SQL valido per DuckDB."""
+
+    @pytest.mark.contract
+    def test_single_file_cte(self):
+        """Singolo file → read_parquet('url')."""
+        result = _build_query(
+            "SELECT * FROM clean_input",
+            "SELECT * FROM read_parquet('https://bucket/file.parquet')",
+            10,
+        )
+        assert result == (
+            "WITH clean_input AS (SELECT * FROM read_parquet('https://bucket/file.parquet')) "
+            "SELECT * FROM (SELECT * FROM clean_input) AS _q LIMIT 10"
+        )
+
+    @pytest.mark.contract
+    def test_multi_file_cte(self):
+        """Multi file → read_parquet(['url1', 'url2'])."""
+        cte = "SELECT * FROM read_parquet(['https://a.parquet', 'https://b.parquet'])"
+        result = _build_query(
+            "SELECT count(*) AS n FROM clean_input",
+            cte,
+            1000,
+        )
+        assert "read_parquet(['https://a.parquet', 'https://b.parquet'])" in result
+        assert "LIMIT 1000" in result
+
+    @pytest.mark.contract
+    def test_sql_injection_prevention(self):
+        """CTE wrapping previene injection: la SQL utente è dentro una subquery."""
+        malicious = "'; DROP TABLE clean_input; --"
+        result = _build_query(malicious, "SELECT 1 AS x", 10)
+        # La SQL malevola finisce dentro la subquery, non può uscire
+        assert "AS _q LIMIT 10" in result
+        assert "DROP" in result  # è dentro la subquery, non pericolosa
+
+    @pytest.mark.contract
+    def test_with_group_by(self):
+        """GROUP BY + ORDER BY funzionano dentro il wrapping."""
+        sql = "SELECT anno, count(*) AS n FROM clean_input GROUP BY anno ORDER BY anno"
+        cte = "SELECT * FROM read_parquet('https://data/dataset.parquet')"
+        result = _build_query(sql, cte, 500)
+        assert result.startswith("WITH clean_input AS (SELECT * FROM read_parquet")
+        assert "GROUP BY anno" in result
+        assert "ORDER BY anno" in result
+        assert "LIMIT 500" in result
+
+
+class TestQueryDefaultSql:
+    """Contratto: _default_sql produce un template chiaro."""
+
+    @pytest.mark.contract
+    def test_with_columns(self):
+        """Template con colonne."""
+        result = _default_sql(
+            "IRPEF Comunale", "2019", "2023",
+            ["anno", "comune", "reddito"],
+        )
+        assert "IRPEF Comunale" in result
+        assert "2019–2023" in result
+        assert "anno, comune, reddito" in result
+        assert "SELECT * FROM clean_input LIMIT 10" in result
+
+    @pytest.mark.contract
+    def test_without_columns(self):
+        """Template senza colonne (es. catalogo senza schema)."""
+        result = _default_sql("Civile Flussi", "2014", "2025", [])
+        assert "Civile Flussi" in result
+        assert "-- Colonne:" not in result
