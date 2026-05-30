@@ -26,8 +26,10 @@ jobs:
         uses: astral-sh/ruff-action@v3
 
       - name: Test with pytest (fast)
-        run: python -m pytest tests/ -v -m "not smoke" --cov=sources --cov-report=term --cov-fail-under=50
+        run: python -m pytest tests/ -v -m "not smoke" \
+          --cov=sources --cov-report=term --cov-fail-under=65
 
       - name: Smoke test (rete, solo su main)
         if: github.ref == 'refs/heads/main'
-        run: python -m pytest tests/ -v -m "smoke" --cov=sources --cov-report=term
+        run: python -m pytest tests/ -v -m "smoke" \
+          --cov=sources --cov-report=term --cov-fail-under=80
