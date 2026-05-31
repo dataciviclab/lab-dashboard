@@ -294,9 +294,21 @@ class TestDuckdbQuery:
 
 # ── Explorer + Analisi ────────────────────────────────────────────────────────
 
-_THEMES_PY = """themes = [
-    {"slug": "territorio-ambiente", "datasets": ["rifiuti-urbani", "capacita-rinnovabile"]},
-    {"slug": "finanza-pubblica", "datasets": ["irpef-comunale", "entrate-stato"]},
+_THEMES_REALISTIC = """#!/usr/bin/env python3
+import json, sys
+
+themes = [
+    {"slug": "territorio-ambiente",
+     "datasets": ["rifiuti-urbani", "capacita-rinnovabile"]},
+    {"slug": "finanza-pubblica",
+     "datasets": ["irpef-comunale", "entrate-stato"]},
+]
+
+json.dump(themes, sys.stdout, ensure_ascii=False)
+"""
+
+_THEMES_SIMPLE = """themes = [
+    {"slug": "a", "datasets": ["x", "y"]},
 ]"""
 
 
@@ -304,12 +316,24 @@ _THEMES_PY = """themes = [
 class TestLoadExplorerDatasets:
     """Contratto: load_explorer_datasets() estrae slug da themes.json.py."""
 
-    def test_parses_themes_correctly(self):
+    def test_parses_realistic_file_with_extra_code(self):
+        """File realistico: ha ``json.dump(...)`` dopo l'array themes.
+
+        Il vecchio parser (partition + literal_eval) falliva su questo caso
+        perche' literal_eval non accetta codice extra dopo il literal.
+        """
         with patch("sources._HTTP.get") as mock_get:
-            mock_get.return_value = _py_resp(_THEMES_PY)
+            mock_get.return_value = _py_resp(_THEMES_REALISTIC)
             result = load_explorer_datasets()
         assert result == {"rifiuti-urbani", "capacita-rinnovabile",
                           "irpef-comunale", "entrate-stato"}
+
+    def test_parses_simple_file(self):
+        """File minimale: solo l'assegnamento themes."""
+        with patch("sources._HTTP.get") as mock_get:
+            mock_get.return_value = _py_resp(_THEMES_SIMPLE)
+            result = load_explorer_datasets()
+        assert result == {"x", "y"}
 
     def test_returns_empty_on_http_error(self):
         with patch("sources._HTTP.get") as mock_get:
