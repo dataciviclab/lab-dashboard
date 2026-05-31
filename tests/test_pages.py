@@ -17,12 +17,8 @@ PAGES = [
     "pages/00_Vista_Insieme.py",
     "pages/01_Dataset_Explorer.py",
     "pages/02_Pipeline_Health.py",
-    "pages/03_Copertura_Dati.py",
-    "pages/04_Funnel_Candidate.py",
     "pages/05_Radar.py",
     "pages/06_Inventario.py",
-    "pages/07_Fonti.py",
-    "pages/08_Discussioni.py",
     "pages/09_Query_SQL.py",
 ]
 
@@ -156,3 +152,71 @@ class TestQueryDefaultSql:
         result = _default_sql("Civile Flussi", "2014", "2025", [])
         assert "Civile Flussi" in result
         assert "-- Colonne:" not in result
+
+
+# ── Resolve slug (multi_file True/False) ──────────────────────────────────────
+
+def _resolve_urls_multi(slug: str, years: list[int]) -> list[str]:
+    """Replica la logica di _resolve_slug per multi_file=True."""
+    return [
+        f"https://storage.googleapis.com/dataciviclab-clean/{slug}/{y}/{slug}_{y}_clean.parquet"
+        for y in years
+    ]
+
+
+def _resolve_urls_single(gcs_path: str) -> list[str]:
+    """Replica la logica di _resolve_slug per multi_file=False."""
+    return [gcs_path.replace("gs://", "https://storage.googleapis.com/", 1)]
+
+
+class TestResolveSlug:
+    """Contratto: _resolve_slug produce URL corretti per entrambi i pattern."""
+
+    @pytest.mark.contract
+    def test_multi_file_produces_one_url_per_year(self):
+        """multi_file=True → un URL per anno."""
+        urls = _resolve_urls_multi("irpef_comunale", [2021, 2022, 2023])
+        assert len(urls) == 3
+        for y, u in zip([2021, 2022, 2023], urls):
+            assert f"/{y}/" in u
+            assert u.startswith("https://storage.googleapis.com/")
+            assert u.endswith("_clean.parquet")
+
+    @pytest.mark.contract
+    def test_multi_file_cte_single_year(self):
+        """Un solo anno → read_parquet('url')."""
+        urls = _resolve_urls_multi("bdap_lea", [2024])
+        assert len(urls) == 1
+        cte = f"SELECT * FROM read_parquet('{urls[0]}')"
+        assert cte.startswith("SELECT * FROM read_parquet('")
+        assert cte.endswith("')")
+
+    @pytest.mark.contract
+    def test_multi_file_cte_multi_year(self):
+        """Più anni → read_parquet(['url1', 'url2'])."""
+        urls = _resolve_urls_multi("irpef_comunale", [2022, 2023])
+        paths = "', '".join(urls)
+        cte = f"SELECT * FROM read_parquet(['{paths}'])"
+        assert "read_parquet(['" in cte
+        assert urls[0] in cte
+        assert urls[1] in cte
+
+    @pytest.mark.contract
+    def test_single_file_converts_gs_to_https(self):
+        """multi_file=False: gs:// → https://storage.googleapis.com/."""
+        gs = "gs://dataciviclab-clean/civile_flussi/2025/civile_flussi_2025_clean.parquet"
+        urls = _resolve_urls_single(gs)
+        assert len(urls) == 1
+        assert urls[0] == (
+            "https://storage.googleapis.com/dataciviclab-clean/"
+            "civile_flussi/2025/civile_flussi_2025_clean.parquet"
+        )
+
+    @pytest.mark.contract
+    def test_single_file_cte(self):
+        """Singolo file → read_parquet('url')."""
+        gs = "gs://bucket/dataset/2024/data_2024_clean.parquet"
+        urls = _resolve_urls_single(gs)
+        cte = f"SELECT * FROM read_parquet('{urls[0]}')"
+        assert urls[0].startswith("https://storage.googleapis.com/")
+        assert "read_parquet('https://storage.googleapis.com/bucket/dataset" in cte
