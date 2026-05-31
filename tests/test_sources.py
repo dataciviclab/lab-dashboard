@@ -20,8 +20,10 @@ from sources import (
     _fetch_yaml,
     _github_token,
     duckdb_query,
+    load_analysis_registry,
     load_catalog,
     load_catalog_signals,
+    load_explorer_datasets,
     load_inventory_report,
     load_radar,
     load_radar_history,
@@ -31,6 +33,18 @@ from sources import (
 )
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
+
+
+def _py_resp(source: str, status: int = 200) -> MagicMock:
+    """Mock response per file Python (es. themes.json.py)."""
+    m = MagicMock()
+    m.status_code = status
+    m.text = source
+    if status >= 400:
+        m.raise_for_status.side_effect = Exception(f"HTTP {status}")
+    else:
+        m.raise_for_status.return_value = None
+    return m
 
 
 def _resp(data, status=200):
@@ -276,3 +290,77 @@ class TestDuckdbQuery:
             mock_con.return_value = mock_conn
             result = duckdb_query("SELECT 1")
         assert result == fake_df
+
+
+# ── Explorer + Analisi ────────────────────────────────────────────────────────
+
+_THEMES_PY = """themes = [
+    {"slug": "territorio-ambiente", "datasets": ["rifiuti-urbani", "capacita-rinnovabile"]},
+    {"slug": "finanza-pubblica", "datasets": ["irpef-comunale", "entrate-stato"]},
+]"""
+
+
+@pytest.mark.contract
+class TestLoadExplorerDatasets:
+    """Contratto: load_explorer_datasets() estrae slug da themes.json.py."""
+
+    def test_parses_themes_correctly(self):
+        with patch("sources._HTTP.get") as mock_get:
+            mock_get.return_value = _py_resp(_THEMES_PY)
+            result = load_explorer_datasets()
+        assert result == {"rifiuti-urbani", "capacita-rinnovabile",
+                          "irpef-comunale", "entrate-stato"}
+
+    def test_returns_empty_on_http_error(self):
+        with patch("sources._HTTP.get") as mock_get:
+            mock_get.return_value = _py_resp("", status=500)
+            result = load_explorer_datasets()
+        assert result == set()
+
+
+_ANALISI_README = """---
+title: Test
+dataset_slug: test_dataset
+---
+# Test analysis"""
+
+
+@pytest.mark.contract
+class TestLoadAnalysisRegistry:
+    """Contratto: load_analysis_registry() mappa analisi → dataset_slug."""
+
+    def test_parses_readme_frontmatter(self):
+        gh_api_response = [
+            {"type": "dir", "name": "test-analisi"},
+            {"type": "dir", "name": "registry"},
+            {"type": "file", "name": "README.md"},
+        ]
+        with patch("sources._HTTP.get") as mock_get:
+            mock_get.side_effect = [
+                _resp(gh_api_response),           # API directory listing
+                _py_resp(_ANALISI_README),         # README.md
+            ]
+            result = load_analysis_registry()
+        assert result == {"test-analisi": "test_dataset"}
+
+    def test_skips_registry_and_template(self):
+        gh_api_response = [
+            {"type": "dir", "name": "registry"},
+            {"type": "dir", "name": "_template"},
+            {"type": "dir", "name": "irpef-comunale"},
+        ]
+        with patch("sources._HTTP.get") as mock_get:
+            mock_get.side_effect = [
+                _resp(gh_api_response),           # API listing
+                _py_resp("---\ndataset_slug: irpef_comunale\n---"),  # README
+            ]
+            result = load_analysis_registry()
+        assert "registry" not in result
+        assert "_template" not in result
+        assert result.get("irpef-comunale") == "irpef_comunale"
+
+    def test_returns_empty_on_http_error(self):
+        with patch("sources._HTTP.get") as mock_get:
+            mock_get.return_value = _resp([], status=500)
+            result = load_analysis_registry()
+        assert result == {}

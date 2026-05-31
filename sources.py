@@ -245,23 +245,31 @@ DCL_BASE = "https://raw.githubusercontent.com/dataciviclab/dataciviclab/main/ana
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_explorer_datasets() -> set[str]:
-    """Dataset slug DE presenti su data-explorer (da themes.json.py).
+    """Dataset slug DE presenti su data-explorer.
 
-    Scarica themes.json.py da GitHub, esegue exec() per estrarre la
-    variabile ``themes``, restituisce l'insieme di tutti gli slug DE.
+    Scarica e fa il parse di ``themes.json.py`` usando ``ast.literal_eval``
+    (sicuro: nessuna esecuzione di codice remoto). Restituisce l'insieme
+    di tutti gli slug DE presenti negli themes.
     """
+    import ast
+
     try:
         r = _HTTP.get(f"{DE_BASE}/themes.json.py", timeout=15)
         r.raise_for_status()
-        ns: dict[str, object] = {}
-        exec(r.text, ns)
-        themes = ns.get("themes", [])
+        # themes.json.py = "themes = [ ... ]" → parse con literal_eval
+        code = r.text
+        if "themes" in code:
+            # Estrae la parte dopo "themes = "
+            _, _, literal = code.partition("themes = ")
+            themes = ast.literal_eval(literal.strip())
+        else:
+            return set()
         slugs: set[str] = set()
         for t in themes:
             slugs.update(t.get("datasets", []))
         return slugs
-    except Exception as e:
-        st.error(f"❌ Explorer datasets non disponibili: {e}")
+    except Exception:
+        # Fallback silenzioso: upstream irraggiungibile
         return set()
 
 
@@ -280,8 +288,8 @@ def load_analysis_registry() -> dict[str, str]:
         )
         r.raise_for_status()
         items = r.json()
-    except Exception as e:
-        st.error(f"❌ Analisi non disponibili: {e}")
+    except Exception:
+        # Fallback silenzioso: upstream irraggiungibile
         return {}
 
     registry: dict[str, str] = {}
@@ -302,7 +310,6 @@ def load_analysis_registry() -> dict[str, str]:
                     registry[slug] = ds_slug
                     break
         except Exception:
-            # Se README non raggiungibile, lo ignoriamo
             pass
 
     return registry
