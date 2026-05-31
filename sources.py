@@ -237,4 +237,75 @@ def verify_parquet(slug: str, year: int) -> dict:
     return {"slug": slug, "year": year, "records": records}
 
 
+# ── Explorer e Analisi (per pipeline end-to-end) ──────────────────────────────
+
+DE_BASE = "https://raw.githubusercontent.com/dataciviclab/data-explorer/main/src/data"
+DCL_BASE = "https://raw.githubusercontent.com/dataciviclab/dataciviclab/main/analisi"
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_explorer_datasets() -> set[str]:
+    """Dataset slug DE presenti su data-explorer (da themes.json.py).
+
+    Scarica themes.json.py da GitHub, esegue exec() per estrarre la
+    variabile ``themes``, restituisce l'insieme di tutti gli slug DE.
+    """
+    try:
+        r = _HTTP.get(f"{DE_BASE}/themes.json.py", timeout=15)
+        r.raise_for_status()
+        ns: dict[str, object] = {}
+        exec(r.text, ns)
+        themes = ns.get("themes", [])
+        slugs: set[str] = set()
+        for t in themes:
+            slugs.update(t.get("datasets", []))
+        return slugs
+    except Exception as e:
+        st.error(f"❌ Explorer datasets non disponibili: {e}")
+        return set()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_analysis_registry() -> dict[str, str]:
+    """Mappa slug analisi → slug dataset (da README frontmatter).
+
+    Usa GitHub API per listare le directory in ``analisi/``, poi legge
+    il ``dataset_slug`` dal frontmatter YAML di ogni README.md.
+    Restituisce {analysis_slug: dataset_slug}.
+    """
+    try:
+        r = _HTTP.get(
+            "https://api.github.com/repos/dataciviclab/dataciviclab/contents/analisi",
+            timeout=15,
+        )
+        r.raise_for_status()
+        items = r.json()
+    except Exception as e:
+        st.error(f"❌ Analisi non disponibili: {e}")
+        return {}
+
+    registry: dict[str, str] = {}
+    for item in items:
+        if item["type"] != "dir":
+            continue
+        slug = item["name"]
+        if slug in ("registry", "_template"):
+            continue
+
+        # Legge README.md e cerca dataset_slug nel frontmatter
+        try:
+            rr = _HTTP.get(f"{DCL_BASE}/{slug}/README.md", timeout=10)
+            rr.raise_for_status()
+            for line in rr.text.splitlines():
+                if line.startswith("dataset_slug:"):
+                    ds_slug = line.split(":", 1)[1].strip()
+                    registry[slug] = ds_slug
+                    break
+        except Exception:
+            # Se README non raggiungibile, lo ignoriamo
+            pass
+
+    return registry
+
+
 

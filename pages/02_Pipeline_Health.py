@@ -1,14 +1,37 @@
-"""Pipeline candidate — funnel intake → pubblicazione, salute CI, dettaglio operativo."""
+"""Pipeline candidate — funnel intake → analisi pubblica, salute CI, dettaglio."""
 import streamlit as st
 
-from sources import data_freshness_note, load_catalog, load_signals
+from sources import (
+    data_freshness_note,
+    load_analysis_registry,
+    load_catalog,
+    load_explorer_datasets,
+    load_signals,
+)
+
+# ── Mapping dataset → Explorer → Analisi (dinamico) ──────────────────────────
+# I dataset su Explorer e le analisi vengono caricati live da upstream.
+# Lo SLUG_MAP serve per i pochi dataset con nome diverso tra DI e DE.
+_SLUG_MAP = {
+    "aifa_spesa_consumo": "spesa-farmaceutica",
+    "ispra_ru_base": "rifiuti-urbani",
+    "civile_flussi": "flussi-giustizia-civile",
+    "terna_capacita_rinnovabile": "capacita-rinnovabile",
+    "terna_electricity_by_source": "produzione-elettrica-fonti",
+    "bdap_entrate_stato": "entrate-stato",
+    "inps_pensioni_trimestrale": "pensioni-inps",
+}
+
+def _de_slug(di_slug: str) -> str:
+    return _SLUG_MAP.get(di_slug, di_slug.replace("_", "-"))
 
 st.title("⚙️ Pipeline candidate")
 
 st.markdown(
     "Pipeline dei dataset del Lab: "
-    "dal candidate (dataset.yml + CI) alla pubblicazione in Explorer. "
-    "Funnel, salute run CI e dettaglio operativo in una vista."
+    "dal candidate (dataset.yml + CI) alla pubblicazione in Explorer "
+    "fino all'analisi pubblica su dataciviclab.org. "
+    "Funnel end-to-end e dettaglio operativo in una vista."
 )
 
 # ── Carica dati ───────────────────────────────────────────────────────────────
@@ -18,7 +41,18 @@ catalog = load_catalog()
 sigs = signals.get("signals", [])
 datasets = catalog.get("datasets", [])
 
+# Carica Explorer e Analisi per il funnel end-to-end
+explorer_slugs = load_explorer_datasets()
+analysis_map = load_analysis_registry()  # {analysis_slug: dataset_slug}
+analysis_dataset_slugs = set(analysis_map.values())  # dataset con analisi
+
 catalog_slugs = set(ds["slug"] for ds in datasets)
+
+# ── Indice segnali per slug (per lookup run) ──────────────────────────────────
+signals_by_slug: dict[str, dict] = {}
+for sig in sigs:
+    sig_slug = sig["id"].replace("-", "_")
+    signals_by_slug[sig_slug] = sig
 
 # ── Classifica candidate ──────────────────────────────────────────────────────
 candidati = []
@@ -43,11 +77,19 @@ incubazione = []
 published_datasets = []
 for ds in datasets:
     stage = ds.get("stage", "")
+    slug = ds["slug"]
+    sig_data = signals_by_slug.get(slug, {})
+    sr = sig_data.get("sample_run", {}) or {}
     item = {
-        "slug": ds["slug"],
+        "slug": slug,
         "name": ds.get("name", ""),
         "source_id": ds.get("source_id", "?"),
         "description": ds.get("description", "")[:120],
+        "on_explorer": _de_slug(slug) in explorer_slugs,
+        "has_analysis": slug in analysis_dataset_slugs,
+        "run_status": sr.get("status", ""),
+        "run_url": sr.get("run_url", ""),
+        "checked_at": sr.get("checked_at", ""),
     }
     if stage == "published":
         published_datasets.append(item)
@@ -74,6 +116,8 @@ for sig in sigs:
 n_intake = len(candidati)
 n_validation = len(incubazione)
 n_published = len(published_datasets)
+n_explorer = sum(1 for d in published_datasets if d["on_explorer"])
+n_analisi = sum(1 for d in published_datasets if d["has_analysis"])
 n_failed = len(all_failed)
 n_compose = sum(1 for c in candidati if c["tipo"] == "compose")
 
@@ -89,9 +133,11 @@ run_none = len(sigs) - run_passed - run_failed
 
 max_n = max(n_intake, n_validation, n_published, 1)
 stages = [
-    ("📥 Intake", n_intake, "#3b82f6", f"{n_compose} compose"),
-    ("🔬 Incubazione", n_validation, "#f59e0b", ""),
+    ("📥 Intake", n_intake, "#94a3b8", f"{n_compose} compose"),
+    ("🔬 Incubazione", n_validation, "#3b82f6", ""),
     ("✅ Pubblicati", n_published, "#16a34a", ""),
+    ("🌐 Su Explorer", n_explorer, "#8b5cf6", ""),
+    ("📄 Con analisi", n_analisi, "#ec4899", ""),
 ]
 for label, count, color, note in stages:
     pct = count / max_n if max_n else 0
@@ -179,9 +225,34 @@ with tab2:
 
 with tab3:
     for ds in published_datasets:
-        with st.expander(f"✅ **{ds['slug']}** — fonte: {ds.get('source_id', '?')}"):
+        badges = []
+        if ds["on_explorer"]:
+            badges.append("🌐 Explorer")
+        if ds["has_analysis"]:
+            badges.append("📄 Analisi")
+        badge_str = " · ".join(badges) if badges else "—"
+        with st.expander(f"✅ **{ds['slug']}** — {badge_str}"):
             st.write(f"**Nome:** {ds.get('name', '?')}")
             st.write(f"**Descrizione:** {ds.get('description', '?')}")
+
+            run_badge = {"passed": "✅ passato", "failed": "❌ fallito",
+                         "": "⚪ sconosciuto"}.get(ds["run_status"], "⚪ sconosciuto")
+            st.write(f"**Ultimo run:** {run_badge}")
+            if ds["checked_at"]:
+                st.write(f"**Check:** {ds['checked_at']}")
+            if ds["run_url"]:
+                st.write(f"**Run CI:** [{ds['run_url']}]({ds['run_url']})")
+
+            if ds["on_explorer"]:
+                de = _de_slug(ds["slug"])
+                st.write(f"🌐 **Explorer:** "
+                         f"[{de}](https://dataciviclab.github.io/data-explorer/dataset/{de})")
+            if ds["has_analysis"]:
+                for a_slug, d_slug in analysis_map.items():
+                    if d_slug == ds["slug"]:
+                        st.write(f"📄 **Analisi:** "
+                                 f"[{a_slug}](https://dataciviclab.org/analisi/{a_slug})")
+                        break
 
 st.markdown("---")
 st.caption("Dati: dataset-incubator (pipeline_signals + clean_catalog)")
