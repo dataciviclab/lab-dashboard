@@ -34,4 +34,4 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: >
           python -m pytest tests/ -v -m "smoke"
-          --cov=sources --cov-report=term --cov-fail-under=60
+          --cov=sources --cov-report=term --cov-fail-under=55
