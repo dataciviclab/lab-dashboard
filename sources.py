@@ -256,13 +256,19 @@ def load_explorer_datasets() -> set[str]:
     try:
         r = _HTTP.get(f"{DE_BASE}/themes.json.py", timeout=15)
         r.raise_for_status()
-        # themes.json.py = "themes = [ ... ]" → parse con literal_eval
-        code = r.text
-        if "themes" in code:
-            # Estrae la parte dopo "themes = "
-            _, _, literal = code.partition("themes = ")
-            themes = ast.literal_eval(literal.strip())
-        else:
+        # themes.json.py contiene anche ``json.dump(themes, ...)`` dopo l'array.
+        # Usiamo AST per estrarre solo il nodo ``themes`` senza eseguire codice.
+        module = ast.parse(r.text)
+        themes = None
+        for node in module.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id == "themes":
+                        themes = ast.literal_eval(node.value)
+                        break
+                if themes is not None:
+                    break
+        if themes is None:
             return set()
         slugs: set[str] = set()
         for t in themes:
