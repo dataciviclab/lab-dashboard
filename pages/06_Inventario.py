@@ -2,6 +2,7 @@
 Inventario — items nei cataloghi e copertura source check.
 Quanto abbiamo censito e quanto abbiamo effettivamente controllato.
 """
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -41,34 +42,44 @@ if not coverage_df.empty:
     col_c1, col_c2, col_c3, col_c4 = st.columns(4)
     col_c1.metric("📦 Items inventario", f"{tot_inv:,}")
     col_c2.metric("🔍 Items checked", f"{tot_chk:,}", f"{coverage_pct}% coverage")
-    col_c3.metric("✅ Raggiungibili", f"{tot_reachable:,}",
-                  f"{round(tot_reachable/tot_chk*100,1) if tot_chk else 0}%")
-    col_c4.metric("🎯 Intake candidate", f"{tot_candidates:,}",
-                  f"{round(tot_candidates/tot_chk*100,1) if tot_chk else 0}%")
+    col_c3.metric(
+        "✅ Raggiungibili",
+        f"{tot_reachable:,}",
+        f"{round(tot_reachable / tot_chk * 100, 1) if tot_chk else 0}%",
+    )
+    col_c4.metric(
+        "🎯 Intake candidate",
+        f"{tot_candidates:,}",
+        f"{round(tot_candidates / tot_chk * 100, 1) if tot_chk else 0}%",
+    )
 
     # Bar chart orizzontale: inventario (grigio) con checked (blu) dentro
     plot_df = coverage_df[coverage_df["inv_items"] > 0].copy()
-    plot_df["coverage_pct"] = (
-        (plot_df["chk_items"] / plot_df["inv_items"] * 100).round(1)
-    )
+    plot_df["coverage_pct"] = (plot_df["chk_items"] / plot_df["inv_items"] * 100).round(1)
     plot_df = plot_df.sort_values("inv_items", ascending=True).tail(15)
 
-    inv_bars = alt.Chart(plot_df).mark_bar(color="#94a3b8").encode(
-        x=alt.X("inv_items:Q", title="Items"),
-        y=alt.Y("source_id:N", title=None,
-                sort=plot_df["source_id"].tolist()),
-        tooltip=[
-            alt.Tooltip("source_id:N", title="Fonte"),
-            alt.Tooltip("inv_items:Q", title="Inventario", format=","),
-            alt.Tooltip("chk_items:Q", title="Checked", format=","),
-            alt.Tooltip("coverage_pct:Q", title="Coverage %", format=".1f"),
-        ],
+    inv_bars = (
+        alt.Chart(plot_df)
+        .mark_bar(color="#94a3b8")
+        .encode(
+            x=alt.X("inv_items:Q", title="Items"),
+            y=alt.Y("source_id:N", title=None, sort=plot_df["source_id"].tolist()),
+            tooltip=[
+                alt.Tooltip("source_id:N", title="Fonte"),
+                alt.Tooltip("inv_items:Q", title="Inventario", format=","),
+                alt.Tooltip("chk_items:Q", title="Checked", format=","),
+                alt.Tooltip("coverage_pct:Q", title="Coverage %", format=".1f"),
+            ],
+        )
     )
 
-    chk_bars = alt.Chart(plot_df).mark_bar(color="#3b82f6").encode(
-        x=alt.X("chk_items:Q"),
-        y=alt.Y("source_id:N", title=None,
-                sort=plot_df["source_id"].tolist()),
+    chk_bars = (
+        alt.Chart(plot_df)
+        .mark_bar(color="#3b82f6")
+        .encode(
+            x=alt.X("chk_items:Q"),
+            y=alt.Y("source_id:N", title=None, sort=plot_df["source_id"].tolist()),
+        )
     )
 
     layered = (inv_bars + chk_bars).properties(height=320)
@@ -101,7 +112,8 @@ if not coverage_df.empty:
             "chk_items": int(r["chk_items"]),
             "inv_items": int(r["inv_items"]),
             "coverage_pct": round(r["chk_items"] / r["inv_items"] * 100, 1)
-            if r["inv_items"] else 0,
+            if r["inv_items"]
+            else 0,
         }
 
 table_rows = []
@@ -112,52 +124,53 @@ for src_id, src_data in registry.items():
 
     # Badge radar
     radar_status = radar_s.get("status", "?")
-    radar_emoji = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(
-        radar_status, "⚪")
+    radar_emoji = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(radar_status, "⚪")
 
     # Badge inventario
     inv_status = inv.get("status", "")
-    inv_badge = ("✅" if inv_status == "ok"
-                 else ("❌" if inv_status == "error" else "—"))
+    inv_badge = "✅" if inv_status == "ok" else ("❌" if inv_status == "error" else "—")
 
     # Segnale
     sig_action = sig.get("suggested_action", "")
-    sig_badge = {"catalog-watch-ready": "📡",
-                 "low signal": "🔉", "nessuna": ""}.get(sig_action, "?")
+    sig_badge = {"catalog-watch-ready": "📡", "low signal": "🔉", "nessuna": ""}.get(
+        sig_action, "?"
+    )
 
     # Coverage
     cov = coverage_map.get(src_id, {})
     chk_items = cov.get("chk_items", 0)
     cov_pct = cov.get("coverage_pct", 0)
 
-    table_rows.append({
-        "id": src_id,
-        "protocollo": src_data.get("protocol", "?"),
-        "radar": f"{radar_emoji} {radar_status}",
-        "inventario": inv_badge,
-        "item_count": inv.get("rows", ""),
-        "checked": chk_items if chk_items else "",
-        "coverage": f"{cov_pct}%" if cov_pct else "",
-        "segnale": sig_badge,
-        "azione": sig_action,
-        "verdict": src_data.get("verdict", "?"),
-        "modalità": src_data.get("observation_mode", "?"),
-    })
+    table_rows.append(
+        {
+            "id": src_id,
+            "protocollo": src_data.get("protocol", "?"),
+            "radar": f"{radar_emoji} {radar_status}",
+            "inventario": inv_badge,
+            "item_count": inv.get("rows", ""),
+            "checked": chk_items if chk_items else "",
+            "coverage": f"{cov_pct}%" if cov_pct else "",
+            "segnale": sig_badge,
+            "azione": sig_action,
+            "verdict": src_data.get("verdict", "?"),
+            "modalità": src_data.get("observation_mode", "?"),
+        }
+    )
 
 df_table = pd.DataFrame(table_rows)
 
 # Filtri
 col_f1, col_f2, col_f3 = st.columns(3)
 with col_f1:
-    rf = st.selectbox("Filtra radar", ["Tutti", "GREEN", "YELLOW", "RED"],
-                      key="inv_filtro_radar")
+    rf = st.selectbox("Filtra radar", ["Tutti", "GREEN", "YELLOW", "RED"], key="inv_filtro_radar")
 with col_f2:
-    vf = st.selectbox("Filtra verdict", ["Tutti", "go", "hold"],
-                      key="inv_filtro_verdict")
+    vf = st.selectbox("Filtra verdict", ["Tutti", "go", "hold"], key="inv_filtro_verdict")
 with col_f3:
-    af = st.selectbox("Filtra azione segnale",
-                      ["Tutti", "catalog-watch-ready", "low signal", "nessuna"],
-                      key="inv_filtro_segnale")
+    af = st.selectbox(
+        "Filtra azione segnale",
+        ["Tutti", "catalog-watch-ready", "low signal", "nessuna"],
+        key="inv_filtro_segnale",
+    )
 
 filtered = df_table
 if rf != "Tutti":
@@ -197,7 +210,7 @@ with st.expander("🔍 Vedi dettaglio completo per fonte"):
 
         http_code = radar_s.get("http_code", "")
         note = radar_s.get("note", "") or ""
-        streak = (radar_s.get("red_streak") or 0)
+        streak = radar_s.get("red_streak") or 0
         inv_rows = inv.get("rows", "")
         inv_method = inv.get("method", "")
         sig_topics = sig.get("topics", {})
@@ -218,8 +231,7 @@ with st.expander("🔍 Vedi dettaglio completo per fonte"):
                 st.write(f"Streak RED: {streak}g")
         with cols[2]:
             if inv_rows:
-                st.write(f"Inventario: {inv_rows} righe"
-                         f"{' · ' + inv_method if inv_method else ''}")
+                st.write(f"Inventario: {inv_rows} righe{' · ' + inv_method if inv_method else ''}")
             if sig:
                 st.write(f"Segnale: {row['segnale']} {row['azione']}")
             if topics_str:

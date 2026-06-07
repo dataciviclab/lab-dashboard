@@ -1,4 +1,5 @@
 """Pipeline candidate — funnel intake → analisi pubblica, salute CI, dettaglio."""
+
 import streamlit as st
 
 from sources import (
@@ -22,8 +23,10 @@ _SLUG_MAP = {
     "inps_pensioni_trimestrale": "pensioni-inps",
 }
 
+
 def _de_slug(di_slug: str) -> str:
     return _SLUG_MAP.get(di_slug, di_slug.replace("_", "-"))
+
 
 st.title("⚙️ Pipeline candidate")
 
@@ -60,18 +63,20 @@ for sig in sigs:
     slug = sig["id"].replace("-", "_")
     if slug not in catalog_slugs:
         sr = sig.get("sample_run", {}) or {}
-        candidati.append({
-            "slug": slug,
-            "id": sig["id"],
-            "label": sig.get("label", slug),
-            "source_id": sig.get("source_id", "?"),
-            "status": sig.get("status", "?"),
-            "detail": sig.get("detail", ""),
-            "checked_at": sr.get("checked_at", "?"),
-            "run_url": sr.get("run_url", ""),
-            "run_status": sr.get("status", ""),
-            "tipo": "compose" if sig["id"].startswith("compose:") else "candidate",
-        })
+        candidati.append(
+            {
+                "slug": slug,
+                "id": sig["id"],
+                "label": sig.get("label", slug),
+                "source_id": sig.get("source_id", "?"),
+                "status": sig.get("status", "?"),
+                "detail": sig.get("detail", ""),
+                "checked_at": sr.get("checked_at", "?"),
+                "run_url": sr.get("run_url", ""),
+                "run_status": sr.get("status", ""),
+                "tipo": "compose" if sig["id"].startswith("compose:") else "candidate",
+            }
+        )
 
 incubazione = []
 published_datasets = []
@@ -102,16 +107,18 @@ for sig in sigs:
     sr = sig.get("sample_run", {}) or {}
     if sr.get("status") == "failed":
         slug = sig["id"].replace("-", "_")
-        all_failed.append({
-            "slug": slug,
-            "id": sig["id"],
-            "label": sig.get("label", slug),
-            "source_id": sig.get("source_id", "?"),
-            "detail": sig.get("detail", ""),
-            "checked_at": sr.get("checked_at", "?"),
-            "run_url": sr.get("run_url", ""),
-            "in_catalogo": slug in catalog_slugs,
-        })
+        all_failed.append(
+            {
+                "slug": slug,
+                "id": sig["id"],
+                "label": sig.get("label", slug),
+                "source_id": sig.get("source_id", "?"),
+                "detail": sig.get("detail", ""),
+                "checked_at": sr.get("checked_at", "?"),
+                "run_url": sr.get("run_url", ""),
+                "in_catalogo": slug in catalog_slugs,
+            }
+        )
 
 n_intake = len(candidati)
 n_validation = len(incubazione)
@@ -145,13 +152,10 @@ for label, count, color, note in stages:
     with r0:
         st.write(f"**{label}**")
     with r1:
-        note_html = (
-            f"<span style='font-size:0.85em;color:gray;'> · {note}</span>"
-            if note else ""
-        )
+        note_html = f"<span style='font-size:0.85em;color:gray;'> · {note}</span>" if note else ""
         bar_html = f"""
         <div style="border-radius:8px; height:32px; overflow:hidden;">
-            <div style="background:{color}; width:{pct*100:.0f}%; height:100%;
+            <div style="background:{color}; width:{pct * 100:.0f}%; height:100%;
                 border-radius:8px; display:flex; align-items:center; padding-left:10px;">
                 <span style="font-weight:bold; font-size:16px;">{count}{note_html}</span>
             </div>
@@ -163,19 +167,23 @@ for label, count, color, note in stages:
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("✅ Segnali OK", ok_count, "configurazione valida")
 col2.metric("🏃 Run passati", run_passed, f"{run_passed}/{ok_count} segnali")
-col3.metric("❌ Run falliti", run_failed,
-            f"{round(run_failed/(run_passed+run_failed)*100)}% dei run"
-            if run_failed else "nessuno")
+col3.metric(
+    "❌ Run falliti",
+    run_failed,
+    f"{round(run_failed / (run_passed + run_failed) * 100)}% dei run" if run_failed else "nessuno",
+)
 col4.metric("⏳ Mai eseguiti", run_none, "senza run CI")
 
 st.markdown("---")
 
 # ── Dettaglio per tab ─────────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs([
-    f"📋 Da rivedere ({n_failed})",
-    f"🔬 In corso ({n_intake + n_validation - n_failed})",
-    f"✅ Completati ({n_published})",
-])
+tab1, tab2, tab3 = st.tabs(
+    [
+        f"📋 Da rivedere ({n_failed})",
+        f"🔬 In corso ({n_intake + n_validation - n_failed})",
+        f"✅ Completati ({n_published})",
+    ]
+)
 
 with tab1:
     if all_failed:
@@ -202,7 +210,8 @@ with tab2:
         if c["run_status"] == "failed":
             continue
         run_badge = {"passed": "✅ passato", "": "⚪ in attesa"}.get(
-            c["run_status"], "⚪ sconosciuto")
+            c["run_status"], "⚪ sconosciuto"
+        )
         e = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(c["status"], "❓")
         tag = "🧩 compose" if c["tipo"] == "compose" else ""
         title = f"{e} **{c['label']}** — run: {run_badge}"
@@ -235,8 +244,9 @@ with tab3:
             st.write(f"**Nome:** {ds.get('name', '?')}")
             st.write(f"**Descrizione:** {ds.get('description', '?')}")
 
-            run_badge = {"passed": "✅ passato", "failed": "❌ fallito",
-                         "": "⚪ sconosciuto"}.get(ds["run_status"], "⚪ sconosciuto")
+            run_badge = {"passed": "✅ passato", "failed": "❌ fallito", "": "⚪ sconosciuto"}.get(
+                ds["run_status"], "⚪ sconosciuto"
+            )
             st.write(f"**Ultimo run:** {run_badge}")
             if ds["checked_at"]:
                 st.write(f"**Check:** {ds['checked_at']}")
@@ -245,13 +255,16 @@ with tab3:
 
             if ds["on_explorer"]:
                 de = _de_slug(ds["slug"])
-                st.write(f"🌐 **Explorer:** "
-                         f"[{de}](https://dataciviclab.github.io/data-explorer/dataset/{de})")
+                st.write(
+                    f"🌐 **Explorer:** "
+                    f"[{de}](https://dataciviclab.github.io/data-explorer/dataset/{de})"
+                )
             if ds["has_analysis"]:
                 for a_slug, d_slug in analysis_map.items():
                     if d_slug == ds["slug"]:
-                        st.write(f"📄 **Analisi:** "
-                                 f"[{a_slug}](https://dataciviclab.org/analisi/{a_slug})")
+                        st.write(
+                            f"📄 **Analisi:** [{a_slug}](https://dataciviclab.org/analisi/{a_slug})"
+                        )
                         break
 
 st.markdown("---")

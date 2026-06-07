@@ -1,4 +1,5 @@
 """Dataset Explorer — copertura anni e verifica parquet su GCS."""
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -48,11 +49,16 @@ if not cov_df.empty:
         real = cov_df[cov_df["anno"] != "?"]
         if not real.empty:
             per_year = real.groupby("anno").size().reset_index(name="dataset")
-            chart = alt.Chart(per_year).mark_bar(color="#3b82f6").encode(
-                x=alt.X("anno:O", title=None),
-                y=alt.Y("dataset:Q", title="Dataset"),
-                tooltip=["anno", "dataset"],
-            ).properties(height=280)
+            chart = (
+                alt.Chart(per_year)
+                .mark_bar(color="#3b82f6")
+                .encode(
+                    x=alt.X("anno:O", title=None),
+                    y=alt.Y("dataset:Q", title="Dataset"),
+                    tooltip=["anno", "dataset"],
+                )
+                .properties(height=280)
+            )
             st.altair_chart(chart, use_container_width=True)
 
             n_max = real["anno"].max()
@@ -76,9 +82,7 @@ col_vs, col_vy, _ = st.columns([2, 1, 4])
 with col_vs:
     verify_slug = st.selectbox("Dataset", slug_options)
 with col_vy:
-    verify_year = st.number_input(
-        "Anno", min_value=2010, max_value=2026, value=2023, step=1
-    )
+    verify_year = st.number_input("Anno", min_value=2010, max_value=2026, value=2023, step=1)
 
 if st.button("🔍 Verifica su GCS"):
     with st.spinner(f"Verifica {verify_slug}/{verify_year}..."):
@@ -88,10 +92,7 @@ if st.button("🔍 Verifica su GCS"):
                 parquet_url = https_url(
                     "clean", "clean_parquet", slug=verify_slug, year=verify_year
                 )
-                st.success(
-                    f"✅ **{verify_slug}**/{verify_year} — "
-                    f"**{result['records']:,}** record"
-                )
+                st.success(f"✅ **{verify_slug}**/{verify_year} — **{result['records']:,}** record")
                 st.markdown(
                     f"📥 **[Scarica parquet]({parquet_url})** "
                     f"— {result['records']:,} righe, formato colonnare"

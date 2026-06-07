@@ -8,6 +8,7 @@ I path GCS seguono il path contract canonico definito in:
 I loader usano st.cache_data e mostrano errori con st.error() per robustezza
 in produzione Streamlit. I fallback su dict/list vuoti evitano crash di pagina.
 """
+
 import os
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -33,12 +34,18 @@ _LAST_FETCH: dict[str, datetime] = {}
 
 
 _HTTP = requests.Session()
-_HTTP.mount("https://", HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
-))
-_HTTP.mount("http://", HTTPAdapter(
-    max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
-))
+_HTTP.mount(
+    "https://",
+    HTTPAdapter(
+        max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
+    ),
+)
+_HTTP.mount(
+    "http://",
+    HTTPAdapter(
+        max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
+    ),
+)
 
 
 def _fetch_json(url: str) -> Any:
@@ -319,6 +326,3 @@ def load_analysis_registry() -> dict[str, str]:
             pass
 
     return registry
-
-
-
