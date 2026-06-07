@@ -4,6 +4,7 @@ Fixture e setup condivisi per i test di lab-dashboard.
 Neutralizza st.cache_data e st.error prima che sources.py venga importato,
 cosi' i decoratori @st.cache_data non interferiscono con i test.
 """
+
 from collections.abc import Callable
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -46,6 +47,7 @@ def mock_duckdb_connect() -> Callable:
 def _resp(data: Any, status: int = 200) -> MagicMock:
     """Crea una mock response requests con dati JSON."""
     import json
+
     m = MagicMock()
     m.status_code = status
     m.json.return_value = data

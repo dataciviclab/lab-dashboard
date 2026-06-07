@@ -10,6 +10,7 @@ Contratto: i loader () producono dict/list strutturati da GitHub raw.
 Prova del fuoco: se cancello questi test, un refactor di sources.py puo'
 rompere tutti i 9 loader che alimentano il dashboard.
 """
+
 import json
 from unittest.mock import MagicMock, patch
 
@@ -143,11 +144,20 @@ RADAR_HISTORY_SAMPLE = {
 }
 
 SIGNALS_SAMPLE = {
-    "signals": [{"source": "aifa", "protocol": "html", "signal_type": "csv_magnet",
-                  "metric_value": 42, "suggested_action": "catalog-watch-ready"}]
+    "signals": [
+        {
+            "source": "aifa",
+            "protocol": "html",
+            "signal_type": "csv_magnet",
+            "metric_value": 42,
+            "suggested_action": "catalog-watch-ready",
+        }
+    ]
 }
 
-INVENTORY_SAMPLE = {"sources": {"istat_sdmx": {"status": "ok", "rows": 4849, "method": "dataflow_count"}}}
+INVENTORY_SAMPLE = {
+    "sources": {"istat_sdmx": {"status": "ok", "rows": 4849, "method": "dataflow_count"}}
+}
 
 CATALOG_SAMPLE = {"datasets": [{"slug": "test", "stage": "published"}]}
 
@@ -243,15 +253,19 @@ class FakeDuckDB:
     class FakeResult:
         def df(self):
             import pandas as pd
+
             return pd.DataFrame({"records": [42]})
 
     class FakeConnection:
         def sql(self, query, params=None):
             return FakeDuckDB.FakeResult()
+
         def close(self):
             pass
+
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             pass
 
@@ -325,8 +339,12 @@ class TestLoadExplorerDatasets:
         with patch("sources._HTTP.get") as mock_get:
             mock_get.return_value = _py_resp(_THEMES_REALISTIC)
             result = load_explorer_datasets()
-        assert result == {"rifiuti-urbani", "capacita-rinnovabile",
-                          "irpef-comunale", "entrate-stato"}
+        assert result == {
+            "rifiuti-urbani",
+            "capacita-rinnovabile",
+            "irpef-comunale",
+            "entrate-stato",
+        }
 
     def test_parses_simple_file(self):
         """File minimale: solo l'assegnamento themes."""
@@ -361,8 +379,8 @@ class TestLoadAnalysisRegistry:
         ]
         with patch("sources._HTTP.get") as mock_get:
             mock_get.side_effect = [
-                _resp(gh_api_response),           # API directory listing
-                _py_resp(_ANALISI_README),         # README.md
+                _resp(gh_api_response),  # API directory listing
+                _py_resp(_ANALISI_README),  # README.md
             ]
             result = load_analysis_registry()
         assert result == {"test-analisi": "test_dataset"}
@@ -375,7 +393,7 @@ class TestLoadAnalysisRegistry:
         ]
         with patch("sources._HTTP.get") as mock_get:
             mock_get.side_effect = [
-                _resp(gh_api_response),           # API listing
+                _resp(gh_api_response),  # API listing
                 _py_resp("---\ndataset_slug: irpef_comunale\n---"),  # README
             ]
             result = load_analysis_registry()

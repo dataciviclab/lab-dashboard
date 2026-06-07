@@ -2,6 +2,7 @@
 Vista d'insieme — polso del DataCivicLab.
 Metriche e stato da Source Observatory, Dataset Incubator e Community.
 """
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -18,9 +19,7 @@ from sources import (
 
 st.title("📊 Vista d'insieme")
 
-st.markdown(
-    "Salute del Lab: dalle fonti monitorate ai dataset pubblicati."
-)
+st.markdown("Salute del Lab: dalle fonti monitorate ai dataset pubblicati.")
 
 # ── Carica tutti i dati ──────────────────────────────────────────
 radar = load_radar()
@@ -56,17 +55,18 @@ n_pipeline_err = sum(1 for sig in sigs if sig.get("status") == "error")
 
 # ── KPI ──────────────────────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("📡 Radar fonti", f"{n_radar}/{n_registry}",
-            f"{n_green}🟢 {n_yellow}🟡 {n_red}🔴")
-col2.metric("📦 Items inventario", f"{tot_inv:,}",
-            f"{coverage_pct}% checked ({tot_chk:,})")
-col3.metric("📚 Dataset", f"{len(datasets)}",
-            f"{n_published} pubblicati · {n_incubating} in incubazione")
+col1.metric("📡 Radar fonti", f"{n_radar}/{n_registry}", f"{n_green}🟢 {n_yellow}🟡 {n_red}🔴")
+col2.metric("📦 Items inventario", f"{tot_inv:,}", f"{coverage_pct}% checked ({tot_chk:,})")
+col3.metric(
+    "📚 Dataset", f"{len(datasets)}", f"{n_published} pubblicati · {n_incubating} in incubazione"
+)
 col4.metric("✅ Pubblicati", n_published, f"{n_incubating} in incubazione")
 
 if persistent_red:
-    st.warning(f"🔴 **{persistent_red} fonte/i persistentemente RED** "
-               "(streak > 7 giorni) — vedi Radar per dettaglio")
+    st.warning(
+        f"🔴 **{persistent_red} fonte/i persistentemente RED** "
+        "(streak > 7 giorni) — vedi Radar per dettaglio"
+    )
 
 if n_pipeline_err:
     st.error(f"❌ **{n_pipeline_err} pipeline in errore** — vedi Pipeline CI")
@@ -90,25 +90,33 @@ with col_s3:
 
 # Bar chart radar: barra per stato
 if n_radar:
-    radar_df = pd.DataFrame([
-        {"stato": "GREEN", "conteggio": n_green, "colore": "#16a34a"},
-        {"stato": "YELLOW", "conteggio": n_yellow, "colore": "#fbbf24"},
-        {"stato": "RED", "conteggio": n_red, "colore": "#dc2626"},
-    ])
-    radar_bars = alt.Chart(radar_df).mark_bar().encode(
-        x=alt.X("stato:N", title=None, sort=["GREEN", "YELLOW", "RED"]),
-        y=alt.Y("conteggio:Q", title="Fonti"),
-        color=alt.Color(
-            "stato:N",
-            scale={"domain": ["GREEN", "YELLOW", "RED"],
-                   "range": ["#16a34a", "#fbbf24", "#dc2626"]},
-            title=None,
-            legend=None,
-        ),
-        tooltip=["stato:N", "conteggio:Q"],
-    ).properties(height=150)
+    radar_df = pd.DataFrame(
+        [
+            {"stato": "GREEN", "conteggio": n_green, "colore": "#16a34a"},
+            {"stato": "YELLOW", "conteggio": n_yellow, "colore": "#fbbf24"},
+            {"stato": "RED", "conteggio": n_red, "colore": "#dc2626"},
+        ]
+    )
+    radar_bars = (
+        alt.Chart(radar_df)
+        .mark_bar()
+        .encode(
+            x=alt.X("stato:N", title=None, sort=["GREEN", "YELLOW", "RED"]),
+            y=alt.Y("conteggio:Q", title="Fonti"),
+            color=alt.Color(
+                "stato:N",
+                scale={
+                    "domain": ["GREEN", "YELLOW", "RED"],
+                    "range": ["#16a34a", "#fbbf24", "#dc2626"],
+                },
+                title=None,
+                legend=None,
+            ),
+            tooltip=["stato:N", "conteggio:Q"],
+        )
+        .properties(height=150)
+    )
     st.altair_chart(radar_bars, use_container_width=True)
-
 
 
 st.markdown("---")
@@ -129,7 +137,8 @@ if stage_filter != "Tutti":
 if search:
     q = search.lower()
     filtered = [
-        d for d in filtered
+        d
+        for d in filtered
         if q in d.get("slug", "").lower()
         or q in d.get("name", "").lower()
         or q in d.get("description", "").lower()
@@ -153,22 +162,26 @@ for ds in filtered:
         cols = ds.get("columns", [])
         if cols:
             st.markdown("**Schema colonne**")
-            col_df = pd.DataFrame([
-                {
-                    "colonna": c.get("name", "?"),
-                    "tipo": c.get("type", "?"),
-                    "ruolo": c.get("role", "?"),
-                    "descrizione": c.get("description", ""),
-                }
-                for c in cols
-            ])
+            col_df = pd.DataFrame(
+                [
+                    {
+                        "colonna": c.get("name", "?"),
+                        "tipo": c.get("type", "?"),
+                        "ruolo": c.get("role", "?"),
+                        "descrizione": c.get("description", ""),
+                    }
+                    for c in cols
+                ]
+            )
             st.dataframe(col_df, hide_index=True, use_container_width=True)
 
 # -- Alert run falliti --
 run_failed = [s for s in sigs if s.get("sample_run", {}).get("status") == "failed"]
 if run_failed:
-    st.warning(f"⚠️ **{len(run_failed)} candidate con run CI fallito** "
-               f"— vai a ⚙️ Pipeline candidate per dettagli")
+    st.warning(
+        f"⚠️ **{len(run_failed)} candidate con run CI fallito** "
+        f"— vai a ⚙️ Pipeline candidate per dettagli"
+    )
 
 if n_pipeline_err:
     st.warning(f"⚠️ **{n_pipeline_err} pipeline in errore**")

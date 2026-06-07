@@ -7,6 +7,7 @@ Contratto: Ogni pagina e' un modulo Python valido (compila, ha AST).
 Prova del fuoco: se cancello questi test, una pagina con sintassi rotta
 puo' arrivare in produzione senza preavviso.
 """
+
 import ast
 import py_compile
 
@@ -56,16 +57,14 @@ def test_home_page_loads():
 
 # ── Helper logic tests per 09_Query_SQL.py ─────────────────────────────────
 
+
 def _build_query(user_sql: str, cte_expr: str, max_rows: int) -> str:
     """Replica la logica pura di pages/09_Query_SQL._build_query.
 
     Mantenuta come funzione a sé stante per testare il contratto SQL
     senza importare il modulo Streamlit (che richiede runtime).
     """
-    return (
-        f"WITH clean_input AS ({cte_expr}) "
-        f"SELECT * FROM ({user_sql}) AS _q LIMIT {max_rows}"
-    )
+    return f"WITH clean_input AS ({cte_expr}) SELECT * FROM ({user_sql}) AS _q LIMIT {max_rows}"
 
 
 def _default_sql(name: str, start: str, end: str, cols: list[str]) -> str:
@@ -138,7 +137,9 @@ class TestQueryDefaultSql:
     def test_with_columns(self):
         """Template con colonne."""
         result = _default_sql(
-            "IRPEF Comunale", "2019", "2023",
+            "IRPEF Comunale",
+            "2019",
+            "2023",
             ["anno", "comune", "reddito"],
         )
         assert "IRPEF Comunale" in result
@@ -155,6 +156,7 @@ class TestQueryDefaultSql:
 
 
 # ── Resolve slug (multi_file True/False) ──────────────────────────────────────
+
 
 def _resolve_urls_multi(slug: str, years: list[int]) -> list[str]:
     """Replica la logica di _resolve_slug per multi_file=True."""

@@ -5,6 +5,7 @@ in tempo reale via DuckDB che legge i Parquet su GCS — niente download, niente
 pre-processing. Stesso pattern di clean-query-mcp: la CTE viene risolta
 automaticamente sugli URL GCS per tutti gli anni del dataset.
 """
+
 from __future__ import annotations
 
 import time
@@ -51,25 +52,16 @@ def _resolve_slug(slug: str) -> tuple[list[str], str, dict[str, Any]]:
                 start = period.get("start")
                 end = period.get("end")
                 if not start or not end:
-                    raise ValueError(
-                        f"Periodo non definito per '{slug}' nel catalogo"
-                    )
+                    raise ValueError(f"Periodo non definito per '{slug}' nel catalogo")
                 years = list(range(start, end + 1))
-                urls = [
-                    https_url("clean", "clean_parquet", slug=slug, year=y)
-                    for y in years
-                ]
+                urls = [https_url("clean", "clean_parquet", slug=slug, year=y) for y in years]
             else:
                 # Singolo file multi-anno: prende il path dal catalogo
                 gcs_path = loc.get("path", "")
                 if not gcs_path:
-                    raise ValueError(
-                        f"Path non definito per '{slug}' nel catalogo"
-                    )
+                    raise ValueError(f"Path non definito per '{slug}' nel catalogo")
                 # Converte gs://BUCKET/PATH → https://storage.googleapis.com/BUCKET/PATH
-                https_path = gcs_path.replace(
-                    "gs://", "https://storage.googleapis.com/", 1
-                )
+                https_path = gcs_path.replace("gs://", "https://storage.googleapis.com/", 1)
                 urls = [https_path]
 
             if len(urls) == 1:
@@ -107,9 +99,7 @@ def _get_schema_df(slug: str) -> pd.DataFrame:
                 urls, _, _ = _resolve_slug(slug)
                 if urls:
                     with duckdb.connect() as con:
-                        return con.sql(
-                            f"DESCRIBE SELECT * FROM read_parquet('{urls[0]}')"
-                        ).df()
+                        return con.sql(f"DESCRIBE SELECT * FROM read_parquet('{urls[0]}')").df()
             except Exception:
                 pass
             return pd.DataFrame()
@@ -118,10 +108,7 @@ def _get_schema_df(slug: str) -> pd.DataFrame:
 
 def _build_query(user_sql: str, cte_expr: str, max_rows: int) -> str:
     """Avvolge la SQL utente nella CTE e applica il LIMIT."""
-    return (
-        f"WITH clean_input AS ({cte_expr}) "
-        f"SELECT * FROM ({user_sql}) AS _q LIMIT {max_rows}"
-    )
+    return f"WITH clean_input AS ({cte_expr}) SELECT * FROM ({user_sql}) AS _q LIMIT {max_rows}"
 
 
 def _default_sql(ds: dict[str, Any]) -> str:
@@ -154,11 +141,7 @@ if not datasets:
     st.stop()
 
 slug_options = sorted(d["slug"] for d in datasets)
-default_idx = (
-    slug_options.index("irpef_comunale")
-    if "irpef_comunale" in slug_options
-    else 0
-)
+default_idx = slug_options.index("irpef_comunale") if "irpef_comunale" in slug_options else 0
 
 # ── Toolbar: dataset e info ─────────────────────────────────────────────────
 
@@ -182,9 +165,7 @@ with col_actions:
     info_cols = st.columns([1, 1, 1])
     with info_cols[0]:
         period = ds_info.get("period", {})
-        st.markdown(
-            f"**Anni:** {period.get('start', '?')}–{period.get('end', '?')}"
-        )
+        st.markdown(f"**Anni:** {period.get('start', '?')}–{period.get('end', '?')}")
     with info_cols[1]:
         st.markdown(f"**Stage:** {ds_info.get('stage', '—')}")
     with info_cols[2]:
@@ -204,9 +185,7 @@ with exp_cols[0]:
                     "colonna": "Colonna",
                     "tipo": "Tipo",
                     "ruolo": "Ruolo",
-                    "descrizione": st.column_config.TextColumn(
-                        "Descrizione", width="large"
-                    ),
+                    "descrizione": st.column_config.TextColumn("Descrizione", width="large"),
                 },
             )
 with exp_cols[1]:
@@ -313,16 +292,13 @@ if execute:
                 )
 
             if n_rows == 0 and not is_truncated:
-                st.success(
-                    "Query eseguita correttamente — **0 righe** restituite."
-                )
+                st.success("Query eseguita correttamente — **0 righe** restituite.")
             elif n_rows > 0:
                 st.dataframe(
                     df,
                     use_container_width=True,
                     column_config={
-                        col: st.column_config.Column(col, width="medium")
-                        for col in df.columns[:8]
+                        col: st.column_config.Column(col, width="medium") for col in df.columns[:8]
                     },
                 )
 
@@ -352,9 +328,7 @@ if execute:
         except Exception as e:
             st.error(f"Errore durante l'esecuzione: {e}")
             if "wrapped_sql" in locals():
-                with st.expander(
-                    "SQL che ha causato l'errore", expanded=True
-                ):
+                with st.expander("SQL che ha causato l'errore", expanded=True):
                     st.code(wrapped_sql, language="sql")
 
 data_freshness_note()

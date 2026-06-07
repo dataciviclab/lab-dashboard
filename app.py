@@ -3,6 +3,7 @@
 DataCivicLab · Dashboard
 Navigazione gerarchica per Source Observatory, Dataset Incubator, Catalogo, Community.
 """
+
 import streamlit as st
 
 st.set_page_config(
@@ -12,12 +13,15 @@ st.set_page_config(
 )
 
 # CSS globali
-st.markdown("""
+st.markdown(
+    """
 <style>
 .funnel-bar-bg { background: var(--secondary-background-color); }
 .funnel-bar-fill { color: var(--text-color) !important; }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Logo + nome Lab in alto a sinistra
 st.logo(
@@ -46,7 +50,11 @@ pages = {
 pg = st.navigation(pages, position="sidebar")
 
 st.sidebar.caption("")  # spazio leggero
-st.sidebar.caption("[DataCivicLab](https://dataciviclab.org/) · [Explorer](https://dataciviclab.github.io/data-explorer/)")
-st.sidebar.caption("[Discussioni](https://github.com/dataciviclab/dataciviclab/discussions) · [GitHub](https://github.com/dataciviclab)")
+st.sidebar.caption(
+    "[DataCivicLab](https://dataciviclab.org/) · [Explorer](https://dataciviclab.github.io/data-explorer/)"
+)
+st.sidebar.caption(
+    "[Discussioni](https://github.com/dataciviclab/dataciviclab/discussions) · [GitHub](https://github.com/dataciviclab)"
+)
 
 pg.run()
