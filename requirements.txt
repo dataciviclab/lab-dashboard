@@ -4,7 +4,7 @@ pandas>=3.0.3
 duckdb>=1.5.3
 requests>=2.34.2
 pyyaml>=6.0.3
-pytest>=9.1.0
+pytest>=9.1.1
 pytest-cov>=7.1.0
 
 # Path contract GCS — vedere lab-connectors/gcs/paths.py
