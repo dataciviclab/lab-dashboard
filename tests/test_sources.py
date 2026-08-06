@@ -29,6 +29,7 @@ from sources import (
     load_radar,
     load_radar_history,
     load_signals,
+    load_sources_dashboard,
     load_sources_registry,
     verify_parquet,
 )
@@ -115,6 +116,7 @@ LOADERS = [
     ("load_radar", load_radar, {}),
     ("load_radar_history", load_radar_history, {"probes": []}),
     ("load_catalog_signals", load_catalog_signals, {"signals": []}),
+    ("load_sources_dashboard", load_sources_dashboard, {"sources": []}),
     ("load_inventory_report", load_inventory_report, {}),
     ("load_catalog", load_catalog, {}),
     ("load_signals", load_signals, {}),
@@ -146,13 +148,35 @@ RADAR_HISTORY_SAMPLE = {
 SIGNALS_SAMPLE = {
     "signals": [
         {
-            "source": "aifa",
-            "protocol": "html",
-            "signal_type": "csv_magnet",
-            "metric_value": 42,
-            "suggested_action": "catalog-watch-ready",
+            "source_id": "aifa",
+            "signal_type": "validated_metrics",
+            "result": "stable",
+            "metric_value": 62,
+            "detail": "reachable=96.8%",
+            "suggested_action": None,
         }
     ]
+}
+
+SOURCES_DASHBOARD_SAMPLE = {
+    "generated_at": "2026-08-03T06:48:44+00:00",
+    "report_version": 2,
+    "total_sources": 36,
+    "summary": {"tot_inventory_items": 15139},
+    "sources": [
+        {
+            "source_id": "anac",
+            "protocol": "ckan",
+            "radar": "GREEN",
+            "inventory_items": 70,
+            "scored_items": 48,
+            "reachable": 47,
+            "avg_readiness": 7.6,
+            "datasets_in_use": 8,
+            "verdict": "STABLE",
+            "last_inventory": "2026-08-03T06:41:09+00:00",
+        }
+    ],
 }
 
 INVENTORY_SAMPLE = {
@@ -186,6 +210,15 @@ class TestLoaderSuccess:
     def test_load_catalog_signals(self, mock_get):
         result = load_catalog_signals()
         assert len(result["signals"]) == 1
+        assert result["signals"][0]["source_id"] == "aifa"
+
+    @patch("sources._HTTP.get", return_value=_resp(SOURCES_DASHBOARD_SAMPLE))
+    def test_load_sources_dashboard(self, mock_get):
+        result = load_sources_dashboard()
+        assert result["report_version"] == 2
+        assert len(result["sources"]) == 1
+        assert result["sources"][0]["verdict"] == "STABLE"
+        assert result["sources"][0]["avg_readiness"] == 7.6
 
     @patch("sources._HTTP.get", return_value=_resp(INVENTORY_SAMPLE))
     def test_load_inventory_report(self, mock_get):

@@ -117,14 +117,28 @@ def load_radar_history():
 @st.cache_data(ttl=300, show_spinner=False)
 def load_catalog_signals():
     """
-    Segnali inventariali SO: metric_value, suggested_action, topics per fonte.
-    Usato in 04_Funnel_Candidate per prioritizzare lo scouting.
+    Segnali inventariali SO (report v1): signal_type, result, metric_value per fonte.
+    Usato in 06_Inventario.py per il badge segnale.
     """
     try:
         return _fetch_json(f"{SO_BASE}/data/catalog/catalog_signals.json")
     except Exception as e:
         st.error(f"❌ Segnali catalogo non disponibili: {e}")
         return {"signals": []}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_sources_dashboard():
+    """
+    Report consolidato fonti SO (report v2): per ogni fonte verdict, readiness,
+    datasets_in_use, items inventory/scored/reachable.
+    Artifact canonico: source-observatory/data/reports/sources_dashboard.json
+    """
+    try:
+        return _fetch_json(f"{SO_BASE}/data/reports/sources_dashboard.json")
+    except Exception as e:
+        st.error(f"❌ Dashboard fonti non disponibile: {e}")
+        return {"sources": []}
 
 
 @st.cache_data(ttl=300, show_spinner=False)

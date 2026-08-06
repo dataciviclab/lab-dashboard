@@ -11,8 +11,8 @@ from sources import (
     data_freshness_note,
     load_catalog_signals,
     load_check_coverage,
-    load_inventory_report,
     load_radar,
+    load_sources_dashboard,
     load_sources_registry,
 )
 
@@ -26,8 +26,6 @@ st.markdown(
 
 # ── Carica dati ───────────────────────────────────────────────────
 coverage_df = load_check_coverage()
-inventory_report = load_inventory_report()
-inventory_sources = inventory_report.get("sources", {})
 
 # ── Copertura source check ────────────────────────────────────────
 st.subheader("Copertura source check")
@@ -91,68 +89,84 @@ else:
 
 st.markdown("---")
 
-# ── Dettaglio fonti (unificato: radar + inventario + coverage + segnali) ──
+# ── Dettaglio fonti (unificato: dashboard SO v2 + radar + registry + segnali) ──
 st.subheader("Dettaglio fonti")
 
+dashboard = load_sources_dashboard()
 radar = load_radar()
 registry = load_sources_registry()
 catalog_signals = load_catalog_signals()
 
 sources = radar.get("sources", [])
+dash_list = dashboard.get("sources", [])
 signals_list = catalog_signals.get("signals", [])
 
 radar_map = {s["id"]: s for s in sources}
-signals_map = {sig.get("source", ""): sig for sig in signals_list}
+dash_map = {d["source_id"]: d for d in dash_list}
+signals_map = {sig.get("source_id", ""): sig for sig in signals_list}
 
-# Coverage map
-coverage_map = {}
-if not coverage_df.empty:
-    for _, r in coverage_df.iterrows():
-        coverage_map[r["source_id"]] = {
-            "chk_items": int(r["chk_items"]),
-            "inv_items": int(r["inv_items"]),
-            "coverage_pct": round(r["chk_items"] / r["inv_items"] * 100, 1)
-            if r["inv_items"]
-            else 0,
-        }
+# Verdict report v2 → etichetta leggibile
+_VERDICT_LABEL = {
+    "STABLE": "stabile",
+    "INVENTORY_CHANGED": "inventario cambiato",
+    "PARTIALLY_SCOPED": "scoping parziale",
+}
+
+
+def _verdict_label(v: str) -> str:
+    return _VERDICT_LABEL.get(v, v or "?")
+
+
+def _readiness_badge(score) -> str:
+    """Readiness 0-10 → emoji + numero."""
+    if score is None:
+        return "—"
+    try:
+        score = float(score)
+    except (TypeError, ValueError):
+        return "—"
+    if score >= 8:
+        return f"🟢 {score:g}"
+    if score >= 4:
+        return f"🟡 {score:g}"
+    return f"🔴 {score:g}"
+
 
 table_rows = []
 for src_id, src_data in registry.items():
+    dash = dash_map.get(src_id, {})
     radar_s = radar_map.get(src_id, {})
-    inv = inventory_sources.get(src_id, {})
     sig = signals_map.get(src_id, {})
 
     # Badge radar
-    radar_status = radar_s.get("status", "?")
+    radar_status = radar_s.get("status", dash.get("radar", "?"))
     radar_emoji = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(radar_status, "⚪")
 
-    # Badge inventario
-    inv_status = inv.get("status", "")
-    inv_badge = "✅" if inv_status == "ok" else ("❌" if inv_status == "error" else "—")
+    # Segnale (schema v2: result + metric_value)
+    sig_result = sig.get("result", "")
+    sig_value = sig.get("metric_value")
+    if sig_result and sig_value is not None:
+        segnale = f"{sig_result} · {sig_value}"
+    elif sig_result:
+        segnale = sig_result
+    else:
+        segnale = "—"
 
-    # Segnale
-    sig_action = sig.get("suggested_action", "")
-    sig_badge = {"catalog-watch-ready": "📡", "low signal": "🔉", "nessuna": ""}.get(
-        sig_action, "?"
-    )
-
-    # Coverage
-    cov = coverage_map.get(src_id, {})
-    chk_items = cov.get("chk_items", 0)
-    cov_pct = cov.get("coverage_pct", 0)
+    verdict = dash.get("verdict", src_data.get("verdict", "?"))
+    n_use = dash.get("datasets_in_use")
 
     table_rows.append(
         {
             "id": src_id,
-            "protocollo": src_data.get("protocol", "?"),
+            "protocollo": dash.get("protocol", src_data.get("protocol", "?")),
             "radar": f"{radar_emoji} {radar_status}",
-            "inventario": inv_badge,
-            "item_count": inv.get("rows", ""),
-            "checked": chk_items if chk_items else "",
-            "coverage": f"{cov_pct}%" if cov_pct else "",
-            "segnale": sig_badge,
-            "azione": sig_action,
-            "verdict": src_data.get("verdict", "?"),
+            "item_count": dash.get("inventory_items", ""),
+            "scored": dash.get("scored_items", ""),
+            "reachable": dash.get("reachable", ""),
+            "readiness": _readiness_badge(dash.get("avg_readiness")),
+            "in_uso": n_use if n_use is not None else "",
+            "segnale": segnale,
+            "verdict": _verdict_label(verdict),
             "modalità": src_data.get("observation_mode", "?"),
         }
     )
@@ -164,32 +178,33 @@ col_f1, col_f2, col_f3 = st.columns(3)
 with col_f1:
     rf = st.selectbox("Filtra radar", ["Tutti", "GREEN", "YELLOW", "RED"], key="inv_filtro_radar")
 with col_f2:
-    vf = st.selectbox("Filtra verdict", ["Tutti", "go", "hold"], key="inv_filtro_verdict")
-with col_f3:
-    af = st.selectbox(
-        "Filtra azione segnale",
-        ["Tutti", "catalog-watch-ready", "low signal", "nessuna"],
-        key="inv_filtro_segnale",
+    vf = st.selectbox(
+        "Filtra verdict",
+        ["Tutti", "stabile", "inventario cambiato", "scoping parziale"],
+        key="inv_filtro_verdict",
     )
+with col_f3:
+    sf = st.selectbox("Filtra segnale", ["Tutti", "stable", "unstable"], key="inv_filtro_segnale")
 
 filtered = df_table
 if rf != "Tutti":
     filtered = filtered[filtered["radar"].str.contains(rf)]
 if vf != "Tutti":
     filtered = filtered[filtered["verdict"] == vf]
-if af != "Tutti":
-    filtered = filtered[filtered["azione"] == af]
+if sf != "Tutti":
+    filtered = filtered[filtered["segnale"].str.startswith(sf)]
 
 st.dataframe(
-    filtered.drop(columns=["azione"]),
+    filtered,
     column_config={
         "id": "Fonte",
         "protocollo": "Protocollo",
         "radar": "Radar",
-        "inventario": "Inv.",
         "item_count": st.column_config.NumberColumn("Item", format="%d"),
-        "checked": st.column_config.NumberColumn("Checked", format="%d"),
-        "coverage": "Coverage",
+        "scored": st.column_config.NumberColumn("Scored", format="%d"),
+        "reachable": st.column_config.NumberColumn("Raggiung.", format="%d"),
+        "readiness": "Readiness",
+        "in_uso": st.column_config.NumberColumn("In uso", format="%d"),
         "segnale": "Segnale",
         "verdict": "Verdetto",
         "modalità": "Modalità",
@@ -203,47 +218,44 @@ st.dataframe(
 with st.expander("🔍 Vedi dettaglio completo per fonte"):
     for _, row in filtered.iterrows():
         src_id = row["id"]
+        dash = dash_map.get(src_id, {})
         radar_s = radar_map.get(src_id, {})
         src_data = registry.get(src_id, {})
-        inv = inventory_sources.get(src_id, {})
         sig = signals_map.get(src_id, {})
 
         http_code = radar_s.get("http_code", "")
         note = radar_s.get("note", "") or ""
         streak = radar_s.get("red_streak") or 0
-        inv_rows = inv.get("rows", "")
-        inv_method = inv.get("method", "")
-        sig_topics = sig.get("topics", {})
-        topics_str = ", ".join(f"{k}={v}" for k, v in sig_topics.items())
-        sig_yr = sig.get("years_range", [])
+        sig_detail = sig.get("detail", "")
+        last_inv = dash.get("last_inventory", "")
 
-        st.markdown(f"**{src_id}** — {row['radar']} · inv {row['inventario']}")
+        st.markdown(f"**{src_id}** — {row['radar']} · verdict {row['verdict']}")
         cols = st.columns(3)
         with cols[0]:
-            st.write(f"Protocollo: {src_data.get('protocol', '?')}")
-            st.write(f"Modalità: {src_data.get('observation_mode', '?')}")
-            st.write(f"Verdetto: {src_data.get('verdict', '?')}")
+            st.write(f"Protocollo: {row['protocollo']}")
+            st.write(f"Modalità: {row['modalità']}")
+            st.write(f"Readiness: {row['readiness']}")
         with cols[1]:
             st.write(f"HTTP: {http_code}" if http_code else "")
             if note:
                 st.write(f"Nota: {note}")
             if streak:
                 st.write(f"Streak RED: {streak}g")
+            if last_inv:
+                st.write(f"Ultimo inventory: {last_inv}")
         with cols[2]:
-            if inv_rows:
-                st.write(f"Inventario: {inv_rows} righe{' · ' + inv_method if inv_method else ''}")
-            if sig:
-                st.write(f"Segnale: {row['segnale']} {row['azione']}")
-            if topics_str:
-                st.write(f"Topic: {topics_str}")
-            if sig_yr:
-                st.write(f"Anni: {sig_yr[0]}–{sig_yr[1]}")
+            if row["item_count"]:
+                st.write(f"Inventario: {row['item_count']} items")
+            if row["in_uso"]:
+                st.write(f"Dataset in uso: {row['in_uso']}")
+            if sig_detail:
+                st.write(f"Segnale: {sig_detail}")
         st.markdown("---")
 
 st.caption(
-    "Fonti: source-observatory (sources_registry.yaml, radar_summary.json, "
-    "catalog_signals.json) · catalog_inventory_report.json (GCS) · "
-    "source_check_results.parquet (GCS)"
+    "Fonti: source-observatory (sources_dashboard.json · radar_summary.json · "
+    "sources_registry.yaml · catalog_signals.json) · "
+    "catalog_inventory_report.json (GCS)"
 )
 
 data_freshness_note()
