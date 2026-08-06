@@ -180,7 +180,7 @@ with exp_cols[0]:
             st.dataframe(
                 schema_df,
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 column_config={
                     "colonna": "Colonna",
                     "tipo": "Tipo",
@@ -296,7 +296,7 @@ if execute:
             elif n_rows > 0:
                 st.dataframe(
                     df,
-                    use_container_width=True,
+                    width="stretch",
                     column_config={
                         col: st.column_config.Column(col, width="medium") for col in df.columns[:8]
                     },

@@ -20,6 +20,7 @@ from sources import (
     _fetch_json,
     _fetch_yaml,
     _github_token,
+    de_slug,
     duckdb_query,
     load_analysis_registry,
     load_catalog,
@@ -29,6 +30,8 @@ from sources import (
     load_radar,
     load_radar_history,
     load_signals,
+    load_source_report,
+    load_sources_dashboard,
     load_sources_registry,
     verify_parquet,
 )
@@ -115,10 +118,19 @@ LOADERS = [
     ("load_radar", load_radar, {}),
     ("load_radar_history", load_radar_history, {"probes": []}),
     ("load_catalog_signals", load_catalog_signals, {"signals": []}),
+    ("load_sources_dashboard", load_sources_dashboard, {"sources": []}),
     ("load_inventory_report", load_inventory_report, {}),
     ("load_catalog", load_catalog, {}),
     ("load_signals", load_signals, {}),
 ]
+
+
+@pytest.mark.contract
+def test_load_source_report_fallback_on_http_error():
+    """load_source_report deve ritornare {} quando HTTP fallisce (502)."""
+    with patch("sources._HTTP.get", return_value=_resp({}, status=502)):
+        result = load_source_report("anac")
+    assert result == {}
 
 
 @pytest.mark.contract
@@ -146,13 +158,56 @@ RADAR_HISTORY_SAMPLE = {
 SIGNALS_SAMPLE = {
     "signals": [
         {
-            "source": "aifa",
-            "protocol": "html",
-            "signal_type": "csv_magnet",
-            "metric_value": 42,
-            "suggested_action": "catalog-watch-ready",
+            "source_id": "aifa",
+            "signal_type": "validated_metrics",
+            "result": "stable",
+            "metric_value": 62,
+            "detail": "reachable=96.8%",
+            "suggested_action": None,
         }
     ]
+}
+
+SOURCES_DASHBOARD_SAMPLE = {
+    "generated_at": "2026-08-03T06:48:44+00:00",
+    "report_version": 2,
+    "total_sources": 36,
+    "summary": {"tot_inventory_items": 15139},
+    "sources": [
+        {
+            "source_id": "anac",
+            "protocol": "ckan",
+            "radar": "GREEN",
+            "inventory_items": 70,
+            "scored_items": 48,
+            "reachable": 47,
+            "avg_readiness": 7.6,
+            "datasets_in_use": 8,
+            "verdict": "STABLE",
+            "last_inventory": "2026-08-03T06:41:09+00:00",
+        }
+    ],
+}
+
+SOURCE_REPORT_SAMPLE = {
+    "source_id": "istat_sdmx",
+    "report_version": 1,
+    "identity": {"protocol": "sdmx", "observation_mode": "catalog-watch", "verdict": "go"},
+    "health": {"radar_status": "GREEN", "http_code": "200"},
+    "inventory": {
+        "total_items": 4899,
+        "method": "dataflow_count",
+        "baseline_value": 4212,
+        "baseline_date": "2026-04-10",
+        "delta": 687,
+        "delta_pct": 16.3,
+    },
+    "source_check": {"total_scored": 3574, "reachable": 3574, "avg_readiness": 5.0},
+    "datasets_in_use": [{"slug": "istat_gini_regionale", "status": "published"}],
+    "operational_verdict": {
+        "label": "INVENTORY_CHANGED",
+        "next_action": "review inventory changes",
+    },
 }
 
 INVENTORY_SAMPLE = {
@@ -186,6 +241,22 @@ class TestLoaderSuccess:
     def test_load_catalog_signals(self, mock_get):
         result = load_catalog_signals()
         assert len(result["signals"]) == 1
+        assert result["signals"][0]["source_id"] == "aifa"
+
+    @patch("sources._HTTP.get", return_value=_resp(SOURCES_DASHBOARD_SAMPLE))
+    def test_load_sources_dashboard(self, mock_get):
+        result = load_sources_dashboard()
+        assert result["report_version"] == 2
+        assert len(result["sources"]) == 1
+        assert result["sources"][0]["verdict"] == "STABLE"
+        assert result["sources"][0]["avg_readiness"] == 7.6
+
+    @patch("sources._HTTP.get", return_value=_resp(SOURCE_REPORT_SAMPLE))
+    def test_load_source_report(self, mock_get):
+        result = load_source_report("istat_sdmx")
+        assert result["source_id"] == "istat_sdmx"
+        assert result["inventory"]["delta"] == 687
+        assert result["operational_verdict"]["next_action"] == "review inventory changes"
 
     @patch("sources._HTTP.get", return_value=_resp(INVENTORY_SAMPLE))
     def test_load_inventory_report(self, mock_get):
@@ -308,8 +379,23 @@ class TestDuckdbQuery:
 
 # ── Explorer + Analisi ────────────────────────────────────────────────────────
 
-_THEMES_REALISTIC = """#!/usr/bin/env python3
-import json, sys
+
+@pytest.mark.contract
+class TestDeSlug:
+    """Contratto: de_slug() mappa slug DI → slug DE (fallback underscore→dash)."""
+
+    def test_mapped_slug(self):
+        assert de_slug("aifa_spesa_consumo") == "spesa-farmaceutica"
+        assert de_slug("bdap_entrate_stato") == "entrate-stato"
+
+    def test_fallback_replace_underscore(self):
+        assert de_slug("anac_bandi_gara") == "anac-bandi-gara"
+
+    def test_unknown_keeps_dash_slug(self):
+        assert de_slug("senato_ddl") == "senato-ddl"
+
+
+_THEMES_REALISTIC = """#!/usr/bin/env python3import json, sys
 
 themes = [
     {"slug": "territorio-ambiente",

@@ -117,14 +117,42 @@ def load_radar_history():
 @st.cache_data(ttl=300, show_spinner=False)
 def load_catalog_signals():
     """
-    Segnali inventariali SO: metric_value, suggested_action, topics per fonte.
-    Usato in 04_Funnel_Candidate per prioritizzare lo scouting.
+    Segnali inventariali SO (report v1): signal_type, result, metric_value per fonte.
+    Usato in 06_Inventario.py per il badge segnale.
     """
     try:
         return _fetch_json(f"{SO_BASE}/data/catalog/catalog_signals.json")
     except Exception as e:
         st.error(f"❌ Segnali catalogo non disponibili: {e}")
         return {"signals": []}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_sources_dashboard():
+    """
+    Report consolidato fonti SO (report v2): per ogni fonte verdict, readiness,
+    datasets_in_use, items inventory/scored/reachable.
+    Artifact canonico: source-observatory/data/reports/sources_dashboard.json
+    """
+    try:
+        return _fetch_json(f"{SO_BASE}/data/reports/sources_dashboard.json")
+    except Exception as e:
+        st.error(f"❌ Dashboard fonti non disponibile: {e}")
+        return {"sources": []}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_source_report(source_id: str):
+    """
+    Report per-fonte SO (report v1): health, inventory (con drift vs baseline),
+    source_check, datasets_in_use, signals, operational_verdict.
+    Artifact canonico: source-observatory/data/reports/source_reports/{source_id}.json
+    """
+    try:
+        return _fetch_json(f"{SO_BASE}/data/reports/source_reports/{source_id}.json")
+    except Exception as e:
+        st.error(f"❌ Report fonte '{source_id}' non disponibile: {e}")
+        return {}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -248,6 +276,23 @@ def verify_parquet(slug: str, year: int) -> dict:
 
 DE_BASE = "https://raw.githubusercontent.com/dataciviclab/data-explorer/main/src/data"
 DCL_BASE = "https://raw.githubusercontent.com/dataciviclab/dataciviclab/main/analisi"
+
+
+# Mapping slug dataset-incubator → slug data-explorer (pochi casi con nome diverso).
+DE_SLUG_MAP = {
+    "aifa_spesa_consumo": "spesa-farmaceutica",
+    "ispra_ru_base": "rifiuti-urbani",
+    "civile_flussi": "flussi-giustizia-civile",
+    "terna_capacita_rinnovabile": "capacita-rinnovabile",
+    "terna_electricity_by_source": "produzione-elettrica-fonti",
+    "bdap_entrate_stato": "entrate-stato",
+    "inps_pensioni_trimestrale": "pensioni-inps",
+}
+
+
+def de_slug(di_slug: str) -> str:
+    """Converti slug dataset-incubator → slug data-explorer."""
+    return DE_SLUG_MAP.get(di_slug, di_slug.replace("_", "-"))
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

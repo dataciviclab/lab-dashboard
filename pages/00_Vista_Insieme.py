@@ -14,6 +14,7 @@ from sources import (
     load_inventory_report,
     load_radar,
     load_signals,
+    load_sources_dashboard,
     load_sources_registry,
 )
 
@@ -88,6 +89,25 @@ with col_s2:
 with col_s3:
     st.metric("🔴 RED", n_red)
 
+# -- KPI aggregati SO (report v2) --
+so_dashboard = load_sources_dashboard()
+so_summary = so_dashboard.get("summary", {})
+by_verdict = so_summary.get("by_verdict", {})
+n_datasets_use = so_summary.get("tot_datasets_in_use", 0)
+n_inv_changed = by_verdict.get("INVENTORY_CHANGED", 0)
+n_partial = by_verdict.get("PARTIALLY_SCOPED", 0)
+
+if so_summary:
+    col_s4, col_s5 = st.columns(2)
+    with col_s4:
+        st.metric("🧩 Dataset in uso", f"{n_datasets_use:,}")
+    with col_s5:
+        st.metric(
+            "🔄 Inventario cambiato",
+            f"{n_inv_changed}",
+            f"{n_partial} scoping parziale",
+        )
+
 # Bar chart radar: barra per stato
 if n_radar:
     radar_df = pd.DataFrame(
@@ -116,7 +136,7 @@ if n_radar:
         )
         .properties(height=150)
     )
-    st.altair_chart(radar_bars, use_container_width=True)
+    st.altair_chart(radar_bars, width="stretch")
 
 
 st.markdown("---")
@@ -173,7 +193,7 @@ for ds in filtered:
                     for c in cols
                 ]
             )
-            st.dataframe(col_df, hide_index=True, use_container_width=True)
+            st.dataframe(col_df, hide_index=True, width="stretch")
 
 # -- Alert run falliti --
 run_failed = [s for s in sigs if s.get("sample_run", {}).get("status") == "failed"]
