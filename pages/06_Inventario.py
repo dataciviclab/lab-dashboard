@@ -82,7 +82,7 @@ if not coverage_df.empty:
 
     layered = (inv_bars + chk_bars).properties(height=320)
 
-    st.altair_chart(layered, use_container_width=True)
+    st.altair_chart(layered, width="stretch")
 
 else:
     st.info("Dati copertura non disponibili.")
@@ -214,7 +214,7 @@ st.dataframe(
         "modalità": "Modalità",
     },
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     height=min(45 * len(filtered) + 35, 600),
 )
 

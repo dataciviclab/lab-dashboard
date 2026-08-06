@@ -106,7 +106,7 @@ if formats:
     fmt_df = pd.DataFrame(
         [{"formato": k, "items": v} for k, v in sorted(formats.items(), key=lambda x: -x[1])]
     )
-    st.dataframe(fmt_df, hide_index=True, use_container_width=True)
+    st.dataframe(fmt_df, hide_index=True, width="stretch")
 
 # ── Source check ───────────────────────────────────────────────────
 st.subheader("Source check")
@@ -121,7 +121,7 @@ if top:
     st.dataframe(
         top_df,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config={
             "name": "Item",
             "score": st.column_config.NumberColumn("Score", format="%d"),

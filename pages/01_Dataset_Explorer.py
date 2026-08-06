@@ -43,7 +43,7 @@ if not cov_df.empty:
         # Anni in ordine decrescente (più recente primo)
         pivot = pivot[sorted(pivot.columns, reverse=True)]
         st.subheader("Copertura anni")
-        st.dataframe(pivot, use_container_width=True, height=320)
+        st.dataframe(pivot, width="stretch", height=320)
 
     with col_chart:
         real = cov_df[cov_df["anno"] != "?"]
@@ -59,7 +59,7 @@ if not cov_df.empty:
                 )
                 .properties(height=280)
             )
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, width="stretch")
 
             n_max = real["anno"].max()
             n_avg = real.groupby("dataset").size().mean()

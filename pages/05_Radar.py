@@ -108,7 +108,7 @@ if probes:
             )
             .properties(height=220)
         )
-        st.altair_chart(line_chart, use_container_width=True)
+        st.altair_chart(line_chart, width="stretch")
 
         # 2. Heatmap fonte × data — ordinate per stato più recente
         latest_date = hist_df["data"].max()
@@ -137,7 +137,7 @@ if probes:
             )
             .properties(height=320)
         )
-        st.altair_chart(heat, use_container_width=True)
+        st.altair_chart(heat, width="stretch")
     else:
         st.info("Nessun dato storico disponibile.")
 else:

@@ -139,7 +139,7 @@ if n_radar:
         )
         .properties(height=150)
     )
-    st.altair_chart(radar_bars, use_container_width=True)
+    st.altair_chart(radar_bars, width="stretch")
 
 
 st.markdown("---")
@@ -196,7 +196,7 @@ for ds in filtered:
                     for c in cols
                 ]
             )
-            st.dataframe(col_df, hide_index=True, use_container_width=True)
+            st.dataframe(col_df, hide_index=True, width="stretch")
 
 # -- Alert run falliti --
 run_failed = [s for s in sigs if s.get("sample_run", {}).get("status") == "failed"]
