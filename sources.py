@@ -278,6 +278,23 @@ DE_BASE = "https://raw.githubusercontent.com/dataciviclab/data-explorer/main/src
 DCL_BASE = "https://raw.githubusercontent.com/dataciviclab/dataciviclab/main/analisi"
 
 
+# Mapping slug dataset-incubator → slug data-explorer (pochi casi con nome diverso).
+DE_SLUG_MAP = {
+    "aifa_spesa_consumo": "spesa-farmaceutica",
+    "ispra_ru_base": "rifiuti-urbani",
+    "civile_flussi": "flussi-giustizia-civile",
+    "terna_capacita_rinnovabile": "capacita-rinnovabile",
+    "terna_electricity_by_source": "produzione-elettrica-fonti",
+    "bdap_entrate_stato": "entrate-stato",
+    "inps_pensioni_trimestrale": "pensioni-inps",
+}
+
+
+def de_slug(di_slug: str) -> str:
+    """Converti slug dataset-incubator → slug data-explorer."""
+    return DE_SLUG_MAP.get(di_slug, di_slug.replace("_", "-"))
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_explorer_datasets() -> set[str]:
     """Dataset slug DE presenti su data-explorer.

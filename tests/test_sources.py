@@ -20,6 +20,7 @@ from sources import (
     _fetch_json,
     _fetch_yaml,
     _github_token,
+    de_slug,
     duckdb_query,
     load_analysis_registry,
     load_catalog,
@@ -378,8 +379,23 @@ class TestDuckdbQuery:
 
 # ── Explorer + Analisi ────────────────────────────────────────────────────────
 
-_THEMES_REALISTIC = """#!/usr/bin/env python3
-import json, sys
+
+@pytest.mark.contract
+class TestDeSlug:
+    """Contratto: de_slug() mappa slug DI → slug DE (fallback underscore→dash)."""
+
+    def test_mapped_slug(self):
+        assert de_slug("aifa_spesa_consumo") == "spesa-farmaceutica"
+        assert de_slug("bdap_entrate_stato") == "entrate-stato"
+
+    def test_fallback_replace_underscore(self):
+        assert de_slug("anac_bandi_gara") == "anac-bandi-gara"
+
+    def test_unknown_keeps_dash_slug(self):
+        assert de_slug("senato_ddl") == "senato-ddl"
+
+
+_THEMES_REALISTIC = """#!/usr/bin/env python3import json, sys
 
 themes = [
     {"slug": "territorio-ambiente",

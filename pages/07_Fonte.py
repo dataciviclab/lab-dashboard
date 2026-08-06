@@ -10,6 +10,7 @@ import streamlit as st
 
 from sources import (
     data_freshness_note,
+    de_slug,
     load_explorer_datasets,
     load_source_report,
     load_sources_dashboard,
@@ -117,7 +118,17 @@ st.metric("Coverage scored", f"{coverage_pct}%" if coverage_pct is not None else
 top = sc.get("top_items", [])
 if top:
     st.markdown("**Top items**")
-    top_df = pd.DataFrame(top)[["name", "score", "format", "reachable"]]
+    top_df = pd.DataFrame(
+        [
+            {
+                "name": t.get("name", "?"),
+                "score": t.get("score"),
+                "format": t.get("format", "—"),
+                "reachable": t.get("reachable"),
+            }
+            for t in top
+        ]
+    )
     st.dataframe(
         top_df,
         hide_index=True,
@@ -144,24 +155,12 @@ st.subheader("Dataset in uso")
 datasets_use = report.get("datasets_in_use", [])
 if datasets_use:
     explorer_slugs = load_explorer_datasets()
-    de_map = {
-        "aifa_spesa_consumo": "spesa-farmaceutica",
-        "ispra_ru_base": "rifiuti-urbani",
-        "civile_flussi": "flussi-giustizia-civile",
-        "terna_capacita_rinnovabile": "capacita-rinnovabile",
-        "terna_electricity_by_source": "produzione-elettrica-fonti",
-        "bdap_entrate_stato": "entrate-stato",
-        "inps_pensioni_trimestrale": "pensioni-inps",
-    }
-
-    def _de_slug(slug: str) -> str:
-        return de_map.get(slug, slug.replace("_", "-"))
 
     for ds in datasets_use:
         slug = ds.get("slug", "?")
         status = ds.get("status", "?")
         badge = "✅ published" if status == "published" else f"⚪ {status}"
-        de = _de_slug(slug)
+        de = de_slug(slug)
         if de in explorer_slugs:
             st.markdown(
                 f"**{slug}** · {badge} · "
