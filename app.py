@@ -37,6 +37,7 @@ pages = {
     "Source Observatory": [
         st.Page("pages/05_Radar.py", title="Radar", icon="📡"),
         st.Page("pages/06_Inventario.py", title="Inventario", icon="📦"),
+        st.Page("pages/07_Fonte.py", title="Scheda fonte", icon="🔍"),
     ],
     "Dataset Incubator": [
         st.Page("pages/02_Pipeline_Health.py", title="Pipeline candidate", icon="⚙️"),

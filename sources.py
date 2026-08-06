@@ -142,6 +142,20 @@ def load_sources_dashboard():
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def load_source_report(source_id: str):
+    """
+    Report per-fonte SO (report v1): health, inventory (con drift vs baseline),
+    source_check, datasets_in_use, signals, operational_verdict.
+    Artifact canonico: source-observatory/data/reports/source_reports/{source_id}.json
+    """
+    try:
+        return _fetch_json(f"{SO_BASE}/data/reports/source_reports/{source_id}.json")
+    except Exception as e:
+        st.error(f"❌ Report fonte '{source_id}' non disponibile: {e}")
+        return {}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
 def load_inventory_report():
     """
     Report inventario SO da GCS: stato build, righe, errore per fonte.

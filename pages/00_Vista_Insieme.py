@@ -14,6 +14,7 @@ from sources import (
     load_inventory_report,
     load_radar,
     load_signals,
+    load_sources_dashboard,
     load_sources_registry,
 )
 
@@ -87,6 +88,28 @@ with col_s2:
     st.metric("🟡 YELLOW", n_yellow)
 with col_s3:
     st.metric("🔴 RED", n_red)
+
+# -- KPI aggregati SO (report v2) --
+so_dashboard = load_sources_dashboard()
+so_summary = so_dashboard.get("summary", {})
+by_verdict = so_summary.get("by_verdict", {})
+n_inventory = so_summary.get("tot_inventory_items", 0)
+n_datasets_use = so_summary.get("tot_datasets_in_use", 0)
+n_inv_changed = by_verdict.get("INVENTORY_CHANGED", 0)
+n_partial = by_verdict.get("PARTIALLY_SCOPED", 0)
+
+if so_summary:
+    col_s4, col_s5, col_s6 = st.columns(3)
+    with col_s4:
+        st.metric("📦 Items inventario", f"{n_inventory:,}")
+    with col_s5:
+        st.metric("🧩 Dataset in uso", f"{n_datasets_use:,}")
+    with col_s6:
+        st.metric(
+            "🔄 Inventario cambiato",
+            f"{n_inv_changed}",
+            f"{n_partial} scoping parziale",
+        )
 
 # Bar chart radar: barra per stato
 if n_radar:

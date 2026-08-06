@@ -92,6 +92,10 @@ st.markdown("---")
 # ── Dettaglio fonti (unificato: dashboard SO v2 + radar + registry + segnali) ──
 st.subheader("Dettaglio fonti")
 
+st.caption(
+    "Per il deep-dive su una singola fonte usa **🔍 Scheda fonte** (menu Source Observatory)."
+)
+
 dashboard = load_sources_dashboard()
 radar = load_radar()
 registry = load_sources_registry()

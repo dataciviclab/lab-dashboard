@@ -29,6 +29,7 @@ from sources import (
     load_radar,
     load_radar_history,
     load_signals,
+    load_source_report,
     load_sources_dashboard,
     load_sources_registry,
     verify_parquet,
@@ -124,6 +125,14 @@ LOADERS = [
 
 
 @pytest.mark.contract
+def test_load_source_report_fallback_on_http_error():
+    """load_source_report deve ritornare {} quando HTTP fallisce (502)."""
+    with patch("sources._HTTP.get", return_value=_resp({}, status=502)):
+        result = load_source_report("anac")
+    assert result == {}
+
+
+@pytest.mark.contract
 @pytest.mark.parametrize("name,loader,expected_fallback", LOADERS)
 def test_loader_fallback_on_http_error(name, loader, expected_fallback):
     """Ogni loader deve ritornare fallback quando HTTP fallisce (502)."""
@@ -179,6 +188,27 @@ SOURCES_DASHBOARD_SAMPLE = {
     ],
 }
 
+SOURCE_REPORT_SAMPLE = {
+    "source_id": "istat_sdmx",
+    "report_version": 1,
+    "identity": {"protocol": "sdmx", "observation_mode": "catalog-watch", "verdict": "go"},
+    "health": {"radar_status": "GREEN", "http_code": "200"},
+    "inventory": {
+        "total_items": 4899,
+        "method": "dataflow_count",
+        "baseline_value": 4212,
+        "baseline_date": "2026-04-10",
+        "delta": 687,
+        "delta_pct": 16.3,
+    },
+    "source_check": {"total_scored": 3574, "reachable": 3574, "avg_readiness": 5.0},
+    "datasets_in_use": [{"slug": "istat_gini_regionale", "status": "published"}],
+    "operational_verdict": {
+        "label": "INVENTORY_CHANGED",
+        "next_action": "review inventory changes",
+    },
+}
+
 INVENTORY_SAMPLE = {
     "sources": {"istat_sdmx": {"status": "ok", "rows": 4849, "method": "dataflow_count"}}
 }
@@ -219,6 +249,13 @@ class TestLoaderSuccess:
         assert len(result["sources"]) == 1
         assert result["sources"][0]["verdict"] == "STABLE"
         assert result["sources"][0]["avg_readiness"] == 7.6
+
+    @patch("sources._HTTP.get", return_value=_resp(SOURCE_REPORT_SAMPLE))
+    def test_load_source_report(self, mock_get):
+        result = load_source_report("istat_sdmx")
+        assert result["source_id"] == "istat_sdmx"
+        assert result["inventory"]["delta"] == 687
+        assert result["operational_verdict"]["next_action"] == "review inventory changes"
 
     @patch("sources._HTTP.get", return_value=_resp(INVENTORY_SAMPLE))
     def test_load_inventory_report(self, mock_get):
