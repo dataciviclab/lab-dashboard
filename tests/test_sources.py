@@ -286,8 +286,8 @@ class TestLoaderSuccess:
     def test_load_signals(self, mock_get):
         result = load_signals()
         assert len(result["signals"]) == 1
-        # il blocco run del registry viene normalizzato in sample_run
-        assert result["signals"][0]["sample_run"]["status"] == "passed"
+        # il blocco run del registry viene esposto come run (status normalizzato)
+        assert result["signals"][0]["run"]["status"] == "passed"
 
     @patch("sources._HTTP.get", return_value=_yaml_resp(REGISTRY_SAMPLE_YAML))
     def test_load_sources_registry(self, mock_get):

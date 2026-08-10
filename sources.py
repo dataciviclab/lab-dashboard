@@ -80,10 +80,9 @@ def load_catalog():
 def load_signals():
     """Segnali pipeline dal registry fusion (registry.json).
 
-    Restituisce un payload compatibile col vecchio pipeline_signals.json:
-    il blocco ``run`` del registry viene esposto come ``sample_run`` (i campi
-    ``checked_at``/``run_url`` non esistono più; si derivano da ``started_at``
-    e ``run_id``) così i consumer non cambiano.
+    Il blocco ``run`` del registry viene esposto direttamente (chiave ``run``):
+    i campi ``checked_at``/``run_url`` non esistono nel registry, si derivano
+    da ``started_at`` e ``run_id``.
     """
     try:
         reg = _fetch_json(f"{REGISTRY_BASE}/registry.json")
@@ -92,7 +91,7 @@ def load_signals():
             sig = dict(s)
             run = s.get("run") or {}
             if run:
-                sr = {
+                sig["run"] = {
                     "status": "passed"
                     if run.get("status") == "SUCCESS"
                     else run.get("status", "").lower(),
@@ -103,7 +102,6 @@ def load_signals():
                     else "",
                     "year": run.get("year"),
                 }
-                sig["sample_run"] = sr
             signals.append(sig)
         return {"schema_version": reg.get("schema_version", "1"), "signals": signals}
     except Exception as e:
