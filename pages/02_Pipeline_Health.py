@@ -4,29 +4,12 @@ import streamlit as st
 
 from sources import (
     data_freshness_note,
+    de_slug,
     load_analysis_registry,
     load_catalog,
     load_explorer_datasets,
     load_signals,
 )
-
-# ── Mapping dataset → Explorer → Analisi (dinamico) ──────────────────────────
-# I dataset su Explorer e le analisi vengono caricati live da upstream.
-# Lo SLUG_MAP serve per i pochi dataset con nome diverso tra DI e DE.
-_SLUG_MAP = {
-    "aifa_spesa_consumo": "spesa-farmaceutica",
-    "ispra_ru_base": "rifiuti-urbani",
-    "civile_flussi": "flussi-giustizia-civile",
-    "terna_capacita_rinnovabile": "capacita-rinnovabile",
-    "terna_electricity_by_source": "produzione-elettrica-fonti",
-    "bdap_entrate_stato": "entrate-stato",
-    "inps_pensioni_trimestrale": "pensioni-inps",
-}
-
-
-def _de_slug(di_slug: str) -> str:
-    return _SLUG_MAP.get(di_slug, di_slug.replace("_", "-"))
-
 
 st.title("⚙️ Pipeline candidate")
 
@@ -90,7 +73,7 @@ for ds in datasets:
         "name": ds.get("name", ""),
         "source_id": ds.get("source_id", "?"),
         "description": ds.get("description", "")[:120],
-        "on_explorer": _de_slug(slug) in explorer_slugs,
+        "on_explorer": de_slug(slug) in explorer_slugs,
         "has_analysis": slug in analysis_dataset_slugs,
         "run_status": sr.get("status", ""),
         "run_url": sr.get("run_url", ""),
@@ -254,7 +237,7 @@ with tab3:
                 st.write(f"**Run CI:** [{ds['run_url']}]({ds['run_url']})")
 
             if ds["on_explorer"]:
-                de = _de_slug(ds["slug"])
+                de = de_slug(ds["slug"])
                 st.write(
                     f"🌐 **Explorer:** "
                     f"[{de}](https://dataciviclab.github.io/data-explorer/dataset/{de})"

@@ -12,6 +12,7 @@ from sources import (
     load_inventory_report,
     load_radar,
     load_radar_history,
+    load_sources_dashboard,
     load_sources_registry,
 )
 
@@ -32,6 +33,15 @@ sources = radar.get("sources", [])
 status_counts = radar.get("status_counts", {})
 generated_at = radar.get("generated_at", "")
 inventory_sources = inventory_report.get("sources", {})
+
+# Data ISO → leggibile (es. 2026-08-06 06:03 UTC)
+if generated_at:
+    try:
+        probe_time = pd.to_datetime(generated_at).strftime("%d/%m/%Y %H:%M")
+    except (ValueError, TypeError):
+        probe_time = generated_at
+else:
+    probe_time = "?"
 
 # ── Metriche ──────────────────────────────────────────────────────
 st.subheader("Indicatori")
@@ -58,7 +68,48 @@ col4.metric("📡 Radar attivi", n_radar, None)
 if radar.get("persistent_red", 0):
     st.warning(f"🔴 **{radar['persistent_red']} fonte/i** persistentemente RED (streak > 7 giorni)")
 
-st.caption(f"Ultimo probe radar: {generated_at} · inventory: {n_inventory} fonti")
+st.caption(f"Ultimo probe radar: {probe_time} UTC · inventory: {n_inventory} fonti")
+st.markdown("---")
+
+# ── Attenzioni operative ───────────────────────────────────────────
+st.subheader("🔎 Attenzioni operative")
+
+so_dash = load_sources_dashboard()
+dash_list = so_dash.get("sources", [])
+
+ssl_issues = [s for s in sources if s.get("ssl_issue")]
+red_sources = [s for s in sources if (s.get("red_streak") or 0) > 0]
+inventory_changed = [d for d in dash_list if d.get("verdict") == "INVENTORY_CHANGED"]
+low_readiness = [d for d in dash_list if (d.get("avg_readiness") or 10) < 4]
+
+attenzioni = []
+if ssl_issues:
+    dettaglio = ", ".join(f"`{s['id']}` (streak {s.get('ssl_streak')}g)" for s in ssl_issues)
+    attenzioni.append(f"🔒 **SSL fallback**: {dettaglio}")
+if red_sources:
+    dettaglio = ", ".join(f"`{s['id']}`" for s in red_sources)
+    attenzioni.append(f"🔴 **RED streak**: {dettaglio}")
+if inventory_changed:
+    dettaglio = ", ".join(f"`{d['source_id']}`" for d in inventory_changed[:8])
+    extra = f" (+{len(inventory_changed) - 8})" if len(inventory_changed) > 8 else ""
+    attenzioni.append(f"🔄 **Inventario cambiato**: {dettaglio}{extra}")
+if low_readiness:
+    dettaglio = ", ".join(
+        f"`{d['source_id']}` ({d.get('avg_readiness'):g})" for d in low_readiness[:8]
+    )
+    extra = f" (+{len(low_readiness) - 8})" if len(low_readiness) > 8 else ""
+    attenzioni.append(f"🔴 **Readiness bassa (<4)**: {dettaglio}{extra}")
+
+if attenzioni:
+    for a in attenzioni:
+        st.markdown(f"- {a}")
+    st.caption(
+        "Dettaglio per fonte: **🔍 Scheda fonte** (menu Source Observatory). "
+        "Readiness: da sources_dashboard (report v2)."
+    )
+else:
+    st.success("Nessuna attenzione operativa rilevata.")
+
 st.markdown("---")
 
 # ── Radar trend ───────────────────────────────────────────────────
@@ -108,36 +159,49 @@ if probes:
             )
             .properties(height=220)
         )
-        st.altair_chart(line_chart, use_container_width=True)
+        st.altair_chart(line_chart, width="stretch")
 
-        # 2. Heatmap fonte × data — ordinate per stato più recente
-        latest_date = hist_df["data"].max()
-        latest_status = (
-            hist_df[hist_df["data"] == latest_date].groupby("fonte")["stato"].first().reset_index()
-        )
-        status_rank = {"RED": 0, "YELLOW": 1, "GREEN": 2}
-        latest_status["ordine"] = latest_status["stato"].map(status_rank).fillna(3)
-        fonte_order = latest_status.sort_values("ordine")["fonte"].tolist()
+        # 2. Heatmap fonte × data — solo fonti con almeno uno stato non-GREEN
+        non_green = sorted(hist_df.loc[hist_df["stato"] != "GREEN", "fonte"].unique())
+        if non_green:
+            heat_df = hist_df[hist_df["fonte"].isin(non_green)]
 
-        heat = (
-            alt.Chart(hist_df)
-            .mark_rect()
-            .encode(
-                x=alt.X("data:O", title="Data", axis=alt.Axis(labelAngle=-45)),
-                y=alt.Y("fonte:N", title="Fonte", sort=fonte_order),
-                color=alt.Color(
-                    "stato:N",
-                    scale={
-                        "domain": ["GREEN", "YELLOW", "RED", "?"],
-                        "range": ["#16a34a", "#fbbf24", "#dc2626", "#94a3b8"],
-                    },
-                    title="Stato",
-                ),
-                tooltip=["data:O", "fonte:N", "stato:N"],
+            # Ordinate per stato più recente
+            latest_date = heat_df["data"].max()
+            latest_status = (
+                heat_df[heat_df["data"] == latest_date]
+                .groupby("fonte")["stato"]
+                .first()
+                .reset_index()
             )
-            .properties(height=320)
-        )
-        st.altair_chart(heat, use_container_width=True)
+            status_rank = {"RED": 0, "YELLOW": 1, "GREEN": 2}
+            latest_status["ordine"] = latest_status["stato"].map(status_rank).fillna(3)
+            fonte_order = latest_status.sort_values("ordine")["fonte"].tolist()
+
+            heat = (
+                alt.Chart(heat_df)
+                .mark_rect()
+                .encode(
+                    x=alt.X("data:O", title="Data", axis=alt.Axis(labelAngle=-45)),
+                    y=alt.Y("fonte:N", title="Fonte", sort=fonte_order),
+                    color=alt.Color(
+                        "stato:N",
+                        scale={
+                            "domain": ["GREEN", "YELLOW", "RED", "?"],
+                            "range": ["#16a34a", "#fbbf24", "#dc2626", "#94a3b8"],
+                        },
+                        title="Stato",
+                    ),
+                    tooltip=["data:O", "fonte:N", "stato:N"],
+                )
+                .properties(height=320)
+            )
+            st.altair_chart(heat, width="stretch")
+            st.caption(
+                f"Heatmap limitata alle {len(non_green)} fonti con stati non-GREEN nel periodo."
+            )
+        else:
+            st.info("Nessuna fonte ha avuto stati non-GREEN nel periodo osservato.")
     else:
         st.info("Nessun dato storico disponibile.")
 else:

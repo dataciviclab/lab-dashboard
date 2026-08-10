@@ -20,6 +20,7 @@ PAGES = [
     "pages/02_Pipeline_Health.py",
     "pages/05_Radar.py",
     "pages/06_Inventario.py",
+    "pages/07_Fonte.py",
     "pages/09_Query_SQL.py",
 ]
 
