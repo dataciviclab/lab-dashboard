@@ -196,7 +196,7 @@ for ds in filtered:
             st.dataframe(col_df, hide_index=True, width="stretch")
 
 # -- Alert run falliti --
-run_failed = [s for s in sigs if s.get("sample_run", {}).get("status") == "failed"]
+run_failed = [s for s in sigs if s.get("run", {}).get("status") == "failed"]
 if run_failed:
     st.warning(
         f"⚠️ **{len(run_failed)} candidate con run CI fallito** "

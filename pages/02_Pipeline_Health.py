@@ -45,7 +45,7 @@ candidati = []
 for sig in sigs:
     slug = sig["id"].replace("-", "_")
     if slug not in catalog_slugs:
-        sr = sig.get("sample_run", {}) or {}
+        sr = sig.get("run", {}) or {}
         candidati.append(
             {
                 "slug": slug,
@@ -67,7 +67,7 @@ for ds in datasets:
     stage = ds.get("stage", "")
     slug = ds["slug"]
     sig_data = signals_by_slug.get(slug, {})
-    sr = sig_data.get("sample_run", {}) or {}
+    sr = sig_data.get("run", {}) or {}
     item = {
         "slug": slug,
         "name": ds.get("name", ""),
@@ -87,7 +87,7 @@ for ds in datasets:
 # Elenco completo di tutti i segnali con run falliti (candidate + catalogo)
 all_failed = []
 for sig in sigs:
-    sr = sig.get("sample_run", {}) or {}
+    sr = sig.get("run", {}) or {}
     if sr.get("status") == "failed":
         slug = sig["id"].replace("-", "_")
         all_failed.append(
@@ -117,8 +117,8 @@ st.subheader("Funnel pipeline")
 ok_count = sum(1 for s in sigs if s.get("status") == "ok")
 warn_count = sum(1 for s in sigs if s.get("status") == "warn")
 err_count = sum(1 for s in sigs if s.get("status") == "error")
-run_passed = sum(1 for s in sigs if s.get("sample_run", {}).get("status") == "passed")
-run_failed = sum(1 for s in sigs if s.get("sample_run", {}).get("status") == "failed")
+run_passed = sum(1 for s in sigs if s.get("run", {}).get("status") == "passed")
+run_failed = sum(1 for s in sigs if s.get("run", {}).get("status") == "failed")
 run_none = len(sigs) - run_passed - run_failed
 
 max_n = max(n_intake, n_validation, n_published, 1)

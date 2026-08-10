@@ -121,7 +121,7 @@ LOADERS = [
     ("load_sources_dashboard", load_sources_dashboard, {"sources": []}),
     ("load_inventory_report", load_inventory_report, {}),
     ("load_catalog", load_catalog, {}),
-    ("load_signals", load_signals, {}),
+    ("load_signals", load_signals, {"signals": []}),
 ]
 
 
@@ -214,11 +214,25 @@ INVENTORY_SAMPLE = {
     "sources": {"istat_sdmx": {"status": "ok", "rows": 4849, "method": "dataflow_count"}}
 }
 
-CATALOG_SAMPLE = {"datasets": [{"slug": "test", "stage": "published"}]}
+# Registry fusion (registry.json) — fonte unica per load_catalog/load_signals
+REGISTRY_SAMPLE = {
+    "schema_version": 1,
+    "datasets": [{"slug": "test", "name": "Test", "stage": "published", "period": {}}],
+    "signals": [
+        {
+            "id": "test",
+            "status": "ok",
+            "run": {
+                "run_id": "20260101T000000Z_abc",
+                "year": 2025,
+                "status": "SUCCESS",
+                "started_at": "2026-01-01T00:00:00+00:00",
+            },
+        }
+    ],
+}
 
-PIPELINE_SAMPLE = {"signals": [{"id": "test", "status": "ok"}]}
-
-REGISTRY_SAMPLE = """istat_sdmx:
+REGISTRY_SAMPLE_YAML = """istat_sdmx:
   protocol: sdmx
   verdict: go
   observation_mode: catalog-watch
@@ -263,17 +277,19 @@ class TestLoaderSuccess:
         result = load_inventory_report()
         assert result["sources"]["istat_sdmx"]["rows"] == 4849
 
-    @patch("sources._HTTP.get", return_value=_resp(CATALOG_SAMPLE))
+    @patch("sources._HTTP.get", return_value=_resp(REGISTRY_SAMPLE))
     def test_load_catalog(self, mock_get):
         result = load_catalog()
         assert len(result["datasets"]) == 1
 
-    @patch("sources._HTTP.get", return_value=_resp(PIPELINE_SAMPLE))
+    @patch("sources._HTTP.get", return_value=_resp(REGISTRY_SAMPLE))
     def test_load_signals(self, mock_get):
         result = load_signals()
         assert len(result["signals"]) == 1
+        # il blocco run del registry viene esposto come run (status normalizzato)
+        assert result["signals"][0]["run"]["status"] == "passed"
 
-    @patch("sources._HTTP.get", return_value=_yaml_resp(REGISTRY_SAMPLE))
+    @patch("sources._HTTP.get", return_value=_yaml_resp(REGISTRY_SAMPLE_YAML))
     def test_load_sources_registry(self, mock_get):
         result = load_sources_registry()
         assert result["istat_sdmx"]["verdict"] == "go"

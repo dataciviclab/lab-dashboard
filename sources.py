@@ -67,8 +67,10 @@ def _fetch_yaml(url: str) -> dict:
 # ── Caricatori con cache — errori mostrati nella UI ──────────────────────────────
 @st.cache_data(ttl=300, show_spinner=False)
 def load_catalog():
+    """Catalogo dataset dal registry fusion (registry.json)."""
     try:
-        return _fetch_json(f"{REGISTRY_BASE}/clean_catalog.json")
+        reg = _fetch_json(f"{REGISTRY_BASE}/registry.json")
+        return reg
     except Exception as e:
         st.error(f"❌ Catalogo non disponibile: {e}")
         return {}
@@ -76,11 +78,35 @@ def load_catalog():
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_signals():
+    """Segnali pipeline dal registry fusion (registry.json).
+
+    Il blocco ``run`` del registry viene esposto direttamente (chiave ``run``):
+    i campi ``checked_at``/``run_url`` non esistono nel registry, si derivano
+    da ``started_at`` e ``run_id``.
+    """
     try:
-        return _fetch_json(f"{REGISTRY_BASE}/pipeline_signals.json")
+        reg = _fetch_json(f"{REGISTRY_BASE}/registry.json")
+        signals = []
+        for s in reg.get("signals", []):
+            sig = dict(s)
+            run = s.get("run") or {}
+            if run:
+                sig["run"] = {
+                    "status": "passed"
+                    if run.get("status") == "SUCCESS"
+                    else run.get("status", "").lower(),
+                    "run_id": run.get("run_id", ""),
+                    "checked_at": (run.get("started_at") or "")[:10],
+                    "run_url": f"https://github.com/dataciviclab/dataset-incubator/actions/runs/{run.get('run_id', '')}"
+                    if run.get("run_id")
+                    else "",
+                    "year": run.get("year"),
+                }
+            signals.append(sig)
+        return {"schema_version": reg.get("schema_version", "1"), "signals": signals}
     except Exception as e:
         st.error(f"❌ Segnali pipeline non disponibili: {e}")
-        return {}
+        return {"signals": []}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
