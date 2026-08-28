@@ -1,3 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lab-dashboard"
+version = "0.1.0"
+description = "Dashboard operativi interni DataCivicLab — pipeline, radar, metriche"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [{name = "DataCivicLab"}]
+
+dependencies = [
+    "streamlit>=1.61.1",
+    "altair>=6.2.2",
+    "pandas>=3.0.5",
+    "duckdb>=1.5.5",
+    "requests>=2.34.2",
+    "pyyaml>=6.0.3",
+    "lab-connectors[duckdb] @ git+https://github.com/dataciviclab/lab-connectors.git",
+    "agent-context-builder @ git+https://github.com/dataciviclab/agent-context-builder.git",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.8.0",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

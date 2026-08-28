@@ -1,14 +1,9 @@
 """
-Test per sources.py — loader, fetching e fallback.
-Non testa pagine Streamlit (troppo dipendenti dal runtime).
+Test per sources.py — loader ACB-based e SO-direct.
 
-Contratto: i loader () producono dict/list strutturati da GitHub raw.
-  _fetch_json/_fetch_yaml gestiscono successo/errore HTTP.
-  I loader hanno fallback su dict/list vuoti quando HTTP fallisce.
-  La serializzazione e' controllata da st.cache_data.
-
-Prova del fuoco: se cancello questi test, un refactor di sources.py puo'
-rompere tutti i 9 loader che alimentano il dashboard.
+Contratto: i loader ACB producono dict/list strutturati da topic_index.json
+  e workspace_triage.json. I fallback su dict/list vuoti quando fetch fallisce.
+  I loader SO diretti mantengono il comportamento legacy.
 """
 
 import json
@@ -19,36 +14,172 @@ import pytest
 from sources import (
     _fetch_json,
     _fetch_yaml,
-    _github_token,
     de_slug,
-    duckdb_query,
-    load_analysis_registry,
     load_catalog,
     load_catalog_signals,
+    load_discussion_counts,
     load_explorer_datasets,
-    load_inventory_report,
     load_radar,
-    load_radar_history,
     load_signals,
-    load_source_report,
-    load_sources_dashboard,
     load_sources_registry,
-    verify_parquet,
 )
 
+# ── Mock data ─────────────────────────────────────────────────────────────────
+
+_MOCK_TOPIC_INDEX = {
+    "schema_version": 4,
+    "generated_at": "2026-08-27T10:00:00",
+    "repos": {
+        "dataciviclab": {
+            "description": "Hub",
+            "url": "https://github.com/dataciviclab/dataciviclab",
+        },
+        "dataset-incubator": {
+            "description": "Incubation",
+            "url": "https://github.com/dataciviclab/dataset-incubator",
+        },
+    },
+    "datasets": {
+        "Agenzia delle Entrate": [
+            {
+                "slug": "ade_cinque_per_mille",
+                "name": "5x1000",
+                "period": {"start": 2023, "end": 2025},
+                "stage": "published",
+            },
+        ],
+        "ANAC": [
+            {
+                "slug": "anac_bandi_gara",
+                "name": "Bandi gara",
+                "period": {"start": 2015, "end": 2024},
+                "stage": "published",
+            },
+            {
+                "slug": "anac_smartcig",
+                "name": "SmartCIG",
+                "period": {"start": 2020, "end": 2024},
+                "stage": "incubating",
+            },
+        ],
+    },
+    "explorer_themes": [
+        {
+            "slug": "finanza-pubblica",
+            "name": "Finanza pubblica",
+            "datasets": ["ade_cinque_per_mille"],
+        },
+    ],
+    "analyses": [
+        {
+            "slug": "cinque-per-mille",
+            "name": "5x1000",
+            "datasets": ["ade_cinque_per_mille"],
+            "status": "active",
+        },
+    ],
+    "analyses_by_dataset": {"ade_cinque_per_mille": ["cinque-per-mille"]},
+    "operational_topics": {},
+}
+
+_MOCK_WORKSPACE_TRIAGE = {
+    "generated_at": "2026-08-27T10:00:00",
+    "repos": ["dataciviclab", "dataset-incubator"],
+    "radar": {
+        "available": True,
+        "probe_date": "2026-08-26",
+        "sources_total": 36,
+        "green": 34,
+        "yellow": 1,
+        "red": 1,
+        "persistent_red": 1,
+        "sources": [
+            {
+                "id": "istat_sdmx",
+                "status": "GREEN",
+                "protocol": "sdmx",
+                "http_code": "200",
+                "note": "",
+                "red_streak": 0,
+            },
+            {
+                "id": "ispra_linked_data",
+                "status": "RED",
+                "protocol": "sparql",
+                "http_code": "-",
+                "note": "Connection error",
+                "red_streak": 14,
+            },
+        ],
+        "unhealthy": [
+            {
+                "id": "ispra_linked_data",
+                "status": "RED",
+                "protocol": "sparql",
+                "note": "Connection error",
+                "red_streak": 14,
+            },
+        ],
+    },
+    "source_health": {
+        "available": True,
+        "captured_at": "2026-08-26",
+        "sources_checked": 36,
+        "regressions": [],
+        "alerts": [],
+    },
+    "pipeline_state": {
+        "available": True,
+        "generated_at": "2026-08-16",
+        "summary": {"total": 100, "by_status": {"ok": 100}},
+        "actionable": [],
+    },
+    "registry_summary": [
+        {
+            "repo": "dataset-incubator",
+            "datasets": 92,
+            "marts": 149,
+            "signals": 100,
+            "source_repo": "dataciviclab/dataset-incubator",
+            "updated_at": "2026-08-16",
+            "signals_detail": [
+                {
+                    "id": "aci_prime",
+                    "source_id": "aci",
+                    "status": "ok",
+                    "label": "ACI",
+                    "detail": "ok",
+                },
+                {
+                    "id": "ispra_ru",
+                    "source_id": "ispra",
+                    "status": "ok",
+                    "label": "ISPRA",
+                    "detail": "ok",
+                },
+            ],
+        },
+        {
+            "repo": "eurostat",
+            "datasets": 30,
+            "marts": 90,
+            "signals": 30,
+            "source_repo": "dataciviclab/eurostat",
+            "updated_at": "2026-08-16",
+            "signals_detail": [],
+        },
+    ],
+    "discussions": [
+        {"title": "Test discussion", "number": 1, "repo": "dataciviclab", "category": "Domande"},
+    ],
+    "prs": [],
+    "issues": [],
+    "git_state": {},
+    "warnings": [],
+}
+
+
 # ── Helpers ─────────────────────────────────────────────────────────────────
-
-
-def _py_resp(source: str, status: int = 200) -> MagicMock:
-    """Mock response per file Python (es. themes.json.py)."""
-    m = MagicMock()
-    m.status_code = status
-    m.text = source
-    if status >= 400:
-        m.raise_for_status.side_effect = Exception(f"HTTP {status}")
-    else:
-        m.raise_for_status.return_value = None
-    return m
 
 
 def _resp(data, status=200):
@@ -111,400 +242,156 @@ class TestFetchYaml:
                 _fetch_yaml(self.URL)
 
 
-# ── Loader fallback ─────────────────────────────────────────────────────────
-
-
-LOADERS = [
-    ("load_radar", load_radar, {}),
-    ("load_radar_history", load_radar_history, {"probes": []}),
-    ("load_catalog_signals", load_catalog_signals, {"signals": []}),
-    ("load_sources_dashboard", load_sources_dashboard, {"sources": []}),
-    ("load_inventory_report", load_inventory_report, {}),
-    ("load_catalog", load_catalog, {}),
-    ("load_signals", load_signals, {"signals": []}),
-]
+# ── ACB-based loaders ──────────────────────────────────────────────────────
 
 
 @pytest.mark.contract
-def test_load_source_report_fallback_on_http_error():
-    """load_source_report deve ritornare {} quando HTTP fallisce (502)."""
-    with patch("sources._HTTP.get", return_value=_resp({}, status=502)):
-        result = load_source_report("anac")
-    assert result == {}
+class TestLoadCatalog:
+    """Contratto: load_catalog() produce {datasets: [...]} da topic_index."""
+
+    def test_flattens_datasets_from_topic_index(self):
+        with patch("sources._fetch_json", return_value=_MOCK_TOPIC_INDEX):
+            result = load_catalog()
+        datasets = result["datasets"]
+        assert len(datasets) == 3  # 1 ADE + 2 ANAC
+        slugs = {ds["slug"] for ds in datasets}
+        assert "ade_cinque_per_mille" in slugs
+        assert "anac_bandi_gara" in slugs
+        # 每个 dataset ha campo source
+        for ds in datasets:
+            assert "source" in ds
+
+    def test_returns_empty_on_error(self):
+        with patch("sources._fetch_json", side_effect=Exception("fail")):
+            result = load_catalog()
+        assert result == {"datasets": []}
 
 
 @pytest.mark.contract
-@pytest.mark.parametrize("name,loader,expected_fallback", LOADERS)
-def test_loader_fallback_on_http_error(name, loader, expected_fallback):
-    """Ogni loader deve ritornare fallback quando HTTP fallisce (502)."""
-    with patch("sources._HTTP.get", return_value=_resp({}, status=502)):
-        result = loader()
-    assert result == expected_fallback
+class TestLoadSignals:
+    """Contratto: load_signals() produce {signals: [...]} da workspace_triage."""
+
+    def test_builds_signals_from_registry_summary(self):
+        with patch("sources._fetch_json", return_value=_MOCK_WORKSPACE_TRIAGE):
+            result = load_signals()
+        signals = result["signals"]
+        assert len(signals) == 2  # 2 signals_detail from dataset-incubator
+        ids = {s["id"] for s in signals}
+        assert "aci_prime" in ids
+        assert "ispra_ru" in ids
+
+    def test_includes_pipeline_state(self):
+        with patch("sources._fetch_json", return_value=_MOCK_WORKSPACE_TRIAGE):
+            result = load_signals()
+        assert "pipeline_state" in result
+        assert result["pipeline_state"]["summary"]["total"] == 100
 
 
-# ── Loader risposta positiva ────────────────────────────────────────────────
+@pytest.mark.contract
+class TestLoadRadar:
+    """Contratto: load_radar() produce status_counts + sources da workspace_triage."""
+
+    def test_transforms_radar_from_triage(self):
+        with patch("sources._fetch_json", return_value=_MOCK_WORKSPACE_TRIAGE):
+            result = load_radar()
+        assert result["status_counts"] == {"GREEN": 34, "YELLOW": 1, "RED": 1}
+        assert result["persistent_red"] == 1
+        assert len(result["sources"]) == 2  # all sources (GREEN + RED)
+        green = [s for s in result["sources"] if s["status"] == "GREEN"]
+        red = [s for s in result["sources"] if s["status"] == "RED"]
+        assert len(green) == 1
+        assert len(red) == 1
 
 
-RADAR_SAMPLE = {
-    "sources_total": 23,
-    "sources": [{"id": "istat_sdmx", "status": "GREEN", "protocol": "sdmx"}],
-    "status_counts": {"GREEN": 18, "YELLOW": 4, "RED": 1},
-}
+@pytest.mark.contract
+class TestLoadSourcesRegistry:
+    """Contratto: load_sources_registry() legge da SO sources_registry.yaml."""
 
-RADAR_HISTORY_SAMPLE = {
-    "probes": [{"probe_date": "2026-05-18", "sources": [{"id": "istat_sdmx", "status": "GREEN"}]}]
-}
-
-SIGNALS_SAMPLE = {
-    "signals": [
-        {
-            "source_id": "aifa",
-            "signal_type": "validated_metrics",
-            "result": "stable",
-            "metric_value": 62,
-            "detail": "reachable=96.8%",
-            "suggested_action": None,
-        }
-    ]
-}
-
-SOURCES_DASHBOARD_SAMPLE = {
-    "generated_at": "2026-08-03T06:48:44+00:00",
-    "report_version": 2,
-    "total_sources": 36,
-    "summary": {"tot_inventory_items": 15139},
-    "sources": [
-        {
-            "source_id": "anac",
-            "protocol": "ckan",
-            "radar": "GREEN",
-            "inventory_items": 70,
-            "scored_items": 48,
-            "reachable": 47,
-            "avg_readiness": 7.6,
-            "datasets_in_use": 8,
-            "verdict": "STABLE",
-            "last_inventory": "2026-08-03T06:41:09+00:00",
-        }
-    ],
-}
-
-SOURCE_REPORT_SAMPLE = {
-    "source_id": "istat_sdmx",
-    "report_version": 1,
-    "identity": {"protocol": "sdmx", "observation_mode": "catalog-watch", "verdict": "go"},
-    "health": {"radar_status": "GREEN", "http_code": "200"},
-    "inventory": {
-        "total_items": 4899,
-        "method": "dataflow_count",
-        "baseline_value": 4212,
-        "baseline_date": "2026-04-10",
-        "delta": 687,
-        "delta_pct": 16.3,
-    },
-    "source_check": {"total_scored": 3574, "reachable": 3574, "avg_readiness": 5.0},
-    "datasets_in_use": [{"slug": "istat_gini_regionale", "status": "published"}],
-    "operational_verdict": {
-        "label": "INVENTORY_CHANGED",
-        "next_action": "review inventory changes",
-    },
-}
-
-INVENTORY_SAMPLE = {
-    "sources": {"istat_sdmx": {"status": "ok", "rows": 4849, "method": "dataflow_count"}}
-}
-
-# Registry fusion (registry.json) — fonte unica per load_catalog/load_signals
-REGISTRY_SAMPLE = {
-    "schema_version": 1,
-    "datasets": [{"slug": "test", "name": "Test", "stage": "published", "period": {}}],
-    "signals": [
-        {
-            "id": "test",
-            "status": "ok",
-            "run": {
-                "run_id": "20260101T000000Z_abc",
-                "year": 2025,
-                "status": "SUCCESS",
-                "started_at": "2026-01-01T00:00:00+00:00",
+    def test_returns_per_source_registry(self):
+        mock_data = {
+            "istat_sdmx": {
+                "protocol": "sdmx",
+                "observation_mode": "api",
+                "base_url": "https://...",
+            },
+            "ispra_ru": {
+                "protocol": "sparql",
+                "observation_mode": "endpoint",
+                "base_url": "https://...",
             },
         }
-    ],
-}
+        with patch("sources._fetch_yaml", return_value=mock_data):
+            result = load_sources_registry()
+        assert "istat_sdmx" in result
+        assert result["istat_sdmx"]["protocol"] == "sdmx"
 
-REGISTRY_SAMPLE_YAML = """istat_sdmx:
-  protocol: sdmx
-  verdict: go
-  observation_mode: catalog-watch
-"""
-
-
-@pytest.mark.contract
-class TestLoaderSuccess:
-    @patch("sources._HTTP.get", return_value=_resp(RADAR_SAMPLE))
-    def test_load_radar(self, mock_get):
-        result = load_radar()
-        assert result["sources_total"] == 23
-
-    @patch("sources._HTTP.get", return_value=_resp(RADAR_HISTORY_SAMPLE))
-    def test_load_radar_history(self, mock_get):
-        result = load_radar_history()
-        assert len(result["probes"]) == 1
-
-    @patch("sources._HTTP.get", return_value=_resp(SIGNALS_SAMPLE))
-    def test_load_catalog_signals(self, mock_get):
-        result = load_catalog_signals()
-        assert len(result["signals"]) == 1
-        assert result["signals"][0]["source_id"] == "aifa"
-
-    @patch("sources._HTTP.get", return_value=_resp(SOURCES_DASHBOARD_SAMPLE))
-    def test_load_sources_dashboard(self, mock_get):
-        result = load_sources_dashboard()
-        assert result["report_version"] == 2
-        assert len(result["sources"]) == 1
-        assert result["sources"][0]["verdict"] == "STABLE"
-        assert result["sources"][0]["avg_readiness"] == 7.6
-
-    @patch("sources._HTTP.get", return_value=_resp(SOURCE_REPORT_SAMPLE))
-    def test_load_source_report(self, mock_get):
-        result = load_source_report("istat_sdmx")
-        assert result["source_id"] == "istat_sdmx"
-        assert result["inventory"]["delta"] == 687
-        assert result["operational_verdict"]["next_action"] == "review inventory changes"
-
-    @patch("sources._HTTP.get", return_value=_resp(INVENTORY_SAMPLE))
-    def test_load_inventory_report(self, mock_get):
-        result = load_inventory_report()
-        assert result["sources"]["istat_sdmx"]["rows"] == 4849
-
-    @patch("sources._HTTP.get", return_value=_resp(REGISTRY_SAMPLE))
-    def test_load_catalog(self, mock_get):
-        result = load_catalog()
-        assert len(result["datasets"]) == 1
-
-    @patch("sources._HTTP.get", return_value=_resp(REGISTRY_SAMPLE))
-    def test_load_signals(self, mock_get):
-        result = load_signals()
-        assert len(result["signals"]) == 1
-        # il blocco run del registry viene esposto come run (status normalizzato)
-        assert result["signals"][0]["run"]["status"] == "passed"
-
-    @patch("sources._HTTP.get", return_value=_yaml_resp(REGISTRY_SAMPLE_YAML))
-    def test_load_sources_registry(self, mock_get):
-        result = load_sources_registry()
-        assert result["istat_sdmx"]["verdict"] == "go"
-
-
-# ── _github_token ───────────────────────────────────────────────────────────
+    def test_returns_empty_on_error(self):
+        with patch("sources._fetch_yaml", side_effect=Exception("fail")):
+            result = load_sources_registry()
+        assert result == {}
 
 
 @pytest.mark.contract
-class TestGithubToken:
-    def test_from_secrets(self):
-        with patch("sources.st.secrets", {"github_token": "tok-secret"}):
-            with patch("sources.os.environ", {}):
-                assert _github_token() == "tok-secret"
+class TestLoadCatalogSignals:
+    """Contratto: load_catalog_signals() legge da SO catalog_signals.json."""
 
-    def test_from_env(self):
-        with patch("sources.st.secrets", {}):
-            with patch("sources.os.environ", {"GITHUB_TOKEN": "tok-env"}):
-                assert _github_token() == "tok-env"
+    def test_returns_per_source_signals(self):
+        mock_data = {
+            "signals": [
+                {
+                    "source_id": "istat_sdmx",
+                    "signal_type": "inventory",
+                    "result": "stabile",
+                    "metric_value": 100,
+                },
+            ]
+        }
+        with patch("sources._fetch_json", return_value=mock_data):
+            result = load_catalog_signals()
+        assert "signals" in result
+        assert result["signals"][0]["source_id"] == "istat_sdmx"
 
-    def test_secrets_overrides_env(self):
-        with patch("sources.st.secrets", {"github_token": "tok-secret"}):
-            with patch("sources.os.environ", {"GITHUB_TOKEN": "tok-env"}):
-                assert _github_token() == "tok-secret"
-
-    @pytest.mark.policy
-    def test_returns_none_when_missing(self):
-        """Senza token ne' in secrets ne' in env → None."""
-        with patch("sources.st.secrets", {}):
-            with patch("sources.os.environ", {}):
-                assert _github_token() is None
-
-    @pytest.mark.policy
-    def test_handles_secrets_exception(self):
-        """st.secrets puo' sollevare Exception (es. in ambiente senza secrets)."""
-        with patch("sources.st.secrets") as mock_secrets:
-            mock_secrets.get.side_effect = Exception("no secrets file")
-            with patch("sources.os.environ", {"GITHUB_TOKEN": "tok-env"}):
-                assert _github_token() == "tok-env"
-
-
-# ── DuckDB functions ────────────────────────────────────────────────────────
-
-
-class FakeDuckDB:
-    """Simula duckdb.connect() per test."""
-
-    class FakeResult:
-        def df(self):
-            import pandas as pd
-
-            return pd.DataFrame({"records": [42]})
-
-    class FakeConnection:
-        def sql(self, query, params=None):
-            return FakeDuckDB.FakeResult()
-
-        def close(self):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            pass
-
-    @staticmethod
-    def connect():
-        return FakeDuckDB.FakeConnection()
+    def test_returns_empty_on_error(self):
+        with patch("sources._fetch_json", side_effect=Exception("fail")):
+            result = load_catalog_signals()
+        assert result == {}
 
 
 @pytest.mark.contract
-class TestVerifyParquet:
-    """Contratto: verify_parquet() verifica parquet GCS via DuckDB."""
+class TestLoadDiscussionCounts:
+    """Contratto: load_discussion_counts() conta per categoria."""
 
-    def test_returns_record_count(self):
-        with patch("sources.duckdb.connect", FakeDuckDB.connect):
-            result = verify_parquet("test-slug", 2023)
-        assert result["slug"] == "test-slug"
-        assert result["year"] == 2023
-        assert result["records"] == 42
-
-    def test_raises_on_error(self):
-        with patch("sources.duckdb.connect") as mock_con:
-            mock_con.return_value.__enter__.return_value.sql.side_effect = Exception("DuckDB error")
-            with pytest.raises(Exception, match="DuckDB error"):
-                verify_parquet("test-slug", 2023)
-
-
-@pytest.mark.contract
-class TestDuckdbQuery:
-    """Contratto: duckdb_query() esegue SQL e restituisce DataFrame."""
-
-    def test_executes_sql(self):
-        fake_df = "fake_df"
-        with patch("sources.duckdb.connect") as mock_con:
-            mock_conn = MagicMock()
-            mock_conn.__enter__.return_value.sql.return_value.df.return_value = fake_df
-            mock_con.return_value = mock_conn
-            result = duckdb_query("SELECT 1")
-        assert result == fake_df
-
-
-# ── Explorer + Analisi ────────────────────────────────────────────────────────
-
-
-@pytest.mark.contract
-class TestDeSlug:
-    """Contratto: de_slug() mappa slug DI → slug DE (fallback underscore→dash)."""
-
-    def test_mapped_slug(self):
-        assert de_slug("aifa_spesa_consumo") == "spesa-farmaceutica"
-        assert de_slug("bdap_entrate_stato") == "entrate-stato"
-
-    def test_fallback_replace_underscore(self):
-        assert de_slug("anac_bandi_gara") == "anac-bandi-gara"
-
-    def test_unknown_keeps_dash_slug(self):
-        assert de_slug("senato_ddl") == "senato-ddl"
-
-
-_THEMES_REALISTIC = """#!/usr/bin/env python3import json, sys
-
-themes = [
-    {"slug": "territorio-ambiente",
-     "datasets": ["rifiuti-urbani", "capacita-rinnovabile"]},
-    {"slug": "finanza-pubblica",
-     "datasets": ["irpef-comunale", "entrate-stato"]},
-]
-
-json.dump(themes, sys.stdout, ensure_ascii=False)
-"""
-
-_THEMES_SIMPLE = """themes = [
-    {"slug": "a", "datasets": ["x", "y"]},
-]"""
+    def test_counts_by_category(self):
+        with patch("sources._fetch_json", return_value=_MOCK_WORKSPACE_TRIAGE):
+            result = load_discussion_counts()
+        assert result == {"Domande": 1}
 
 
 @pytest.mark.contract
 class TestLoadExplorerDatasets:
-    """Contratto: load_explorer_datasets() estrae slug da themes.json.py."""
+    """Contratto: load_explorer_datasets() estrae slug da explorer_themes."""
 
-    def test_parses_realistic_file_with_extra_code(self):
-        """File realistico: ha ``json.dump(...)`` dopo l'array themes.
-
-        Il vecchio parser (partition + literal_eval) falliva su questo caso
-        perche' literal_eval non accetta codice extra dopo il literal.
-        """
-        with patch("sources._HTTP.get") as mock_get:
-            mock_get.return_value = _py_resp(_THEMES_REALISTIC)
+    def test_extracts_slugs(self):
+        with patch("sources._fetch_json", return_value=_MOCK_TOPIC_INDEX):
             result = load_explorer_datasets()
-        assert result == {
-            "rifiuti-urbani",
-            "capacita-rinnovabile",
-            "irpef-comunale",
-            "entrate-stato",
-        }
+        assert result == {"ade_cinque_per_mille"}
 
-    def test_parses_simple_file(self):
-        """File minimale: solo l'assegnamento themes."""
-        with patch("sources._HTTP.get") as mock_get:
-            mock_get.return_value = _py_resp(_THEMES_SIMPLE)
-            result = load_explorer_datasets()
-        assert result == {"x", "y"}
-
-    def test_returns_empty_on_http_error(self):
-        with patch("sources._HTTP.get") as mock_get:
-            mock_get.return_value = _py_resp("", status=500)
+    def test_returns_empty_on_error(self):
+        with patch("sources._fetch_json", side_effect=Exception("fail")):
             result = load_explorer_datasets()
         assert result == set()
 
 
-_ANALISI_README = """---
-title: Test
-dataset_slug: test_dataset
----
-# Test analysis"""
-
-
 @pytest.mark.contract
-class TestLoadAnalysisRegistry:
-    """Contratto: load_analysis_registry() mappa analisi → dataset_slug."""
+class TestDeSlug:
+    def test_known_mapping(self):
+        assert de_slug("aifa_spesa_consumo") == "spesa-farmaceutica"
 
-    def test_parses_readme_frontmatter(self):
-        gh_api_response = [
-            {"type": "dir", "name": "test-analisi"},
-            {"type": "dir", "name": "registry"},
-            {"type": "file", "name": "README.md"},
-        ]
-        with patch("sources._HTTP.get") as mock_get:
-            mock_get.side_effect = [
-                _resp(gh_api_response),  # API directory listing
-                _py_resp(_ANALISI_README),  # README.md
-            ]
-            result = load_analysis_registry()
-        assert result == {"test-analisi": "test_dataset"}
+    def test_default_mapping(self):
+        assert de_slug("ispra_ru_base") == "rifiuti-urbani"
 
-    def test_skips_registry_and_template(self):
-        gh_api_response = [
-            {"type": "dir", "name": "registry"},
-            {"type": "dir", "name": "_template"},
-            {"type": "dir", "name": "irpef-comunale"},
-        ]
-        with patch("sources._HTTP.get") as mock_get:
-            mock_get.side_effect = [
-                _resp(gh_api_response),  # API listing
-                _py_resp("---\ndataset_slug: irpef_comunale\n---"),  # README
-            ]
-            result = load_analysis_registry()
-        assert "registry" not in result
-        assert "_template" not in result
-        assert result.get("irpef-comunale") == "irpef_comunale"
+    def test_generic_conversion(self):
+        assert de_slug("some_dataset") == "some-dataset"
 
-    def test_returns_empty_on_http_error(self):
-        with patch("sources._HTTP.get") as mock_get:
-            mock_get.return_value = _resp([], status=500)
-            result = load_analysis_registry()
-        assert result == {}
+    def test_no_underscore(self):
+        assert de_slug("nodash") == "nodash"

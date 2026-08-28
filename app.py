@@ -40,10 +40,10 @@ pages = {
         st.Page("pages/07_Fonte.py", title="Scheda fonte", icon="🔍"),
     ],
     "Dataset Incubator": [
-        st.Page("pages/02_Pipeline_Health.py", title="Pipeline candidate", icon="⚙️"),
+        st.Page("pages/02_Pipeline_Health.py", title="Registry / Repo", icon="📦"),
     ],
     "Catalogo": [
-        st.Page("pages/01_Dataset_Explorer.py", title="Esplora dataset", icon="📚"),
+        st.Page("pages/01_Dataset_Explorer.py", title="Catalogo", icon="📚"),
         st.Page("pages/09_Query_SQL.py", title="Query SQL", icon="🧪"),
     ],
 }
