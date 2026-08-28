@@ -4,56 +4,47 @@ Dashboard operativi interni di DataCivicLab.
 
 **Live**: [dataciviclab-dashboard.streamlit.app](https://dataciviclab-dashboard.streamlit.app/)
 
-Basato su **Streamlit** + **DuckDB** + **Altair**. Legge metadati da GitHub raw, report da GCS e discussioni via GitHub GraphQL API.
+## Architettura dati
+
+La dashboard consuma da **2 fonti**:
+
+| Fonte | Artifact | Cosa fornisce |
+|---|---|---|
+| **agent-context-builder** | `topic_index.json` + `workspace_triage.json` | Catalogo (211 dataset), radar (36 fonti), segnali pipeline, PR, issues, discussions |
+| **source-observatory** | `radar_summary.json`, `radar_history.json`, `sources_registry.yaml`, `sources_dashboard.json`, `catalog_signals.json` | Radar storico, inventario per fonte, source reports |
+| **GCS** (DuckDB) | Parquet clean/mart | Query SQL, verifica parquet |
 
 ## Setup
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 streamlit run app.py
 ```
 
-Apri http://localhost:8501
+## Pagine
 
-## Navigazione
-
-| Sezione | Pagina | Cosa mostra |
+| Pagina | Fonte | Cosa mostra |
 |---|---|---|
-| — | **Vista d'insieme** | Metriche globali: dataset, fonti attive, pipeline OK, discussioni recenti |
-| **Source Observatory** | **Stato e KPI** | Funnel SO (23→23→15→5→6), radar trend storico, tabella fonti unificata con inventario e segnali |
-| **Dataset Incubator** | **Pipeline CI** | Segnali CI, success rate run (passed/failed), candidate distribuite per fonte |
-| | **Funnel candidate** | Flusso SCOUTING → INTAKE → VALIDAZIONE → PUBBLICATI, tag compose |
-| | **Copertura dati** | Matrice anni×dataset letta live dai parquet GCS via DuckDB |
-| **Catalogo** | **Esplora dataset** | Browse catalogo con schema colonne (nome, tipo, ruolo) |
-| **Community** | **Discussioni** | GitHub Discussions del Lab via GraphQL API |
-
-## Dati
-
-| Fonte | Artifact | Consumato da |
-|---|---|---|
-| **dataset-incubator** `registry/` | `clean_catalog.json`, `pipeline_signals.json` | Vista d'insieme, Pipeline CI, Funnel, Copertura, Explorer |
-| **source-observatory** `data/radar/` | `radar_summary.json`, `radar_history.json`, `sources_registry.yaml` | Source Observatory, Funnel |
-| **source-observatory** `data/catalog/` | `catalog_signals.json` | Source Observatory |
-| **source-observatory** GCS | `catalog_inventory_report.json` | Source Observatory (badge inventario) |
-| **GitHub GraphQL** | Discussions API | Vista d'insieme, Discussioni |
-
-## Deploy
-
-Su **Streamlit Community Cloud**:
-
-1. Collega il repo GitHub
-2. App principale: `app.py`
-3. Python version: 3.12
-4. Deploy automatico a ogni push su `main`
-
-## CI
-
-Su ogni push/PR: `ruff` lint + `pytest` (17 test su `sources.py`).
+| **Vista d'insieme** | ACB | KPI radar, dataset, pipeline, PR/issues/discussions. Barra radar, top fonti |
+| **Catalogo** | ACB | Filtri per fonte/stage/categoria, tabella compatta, copertura anni, verifica parquet |
+| **Registry / Repo** | ACB | Stato registry per repo: dataset, mart, segnali, ok/warn/error |
+| **Radar** | ACB + SO | 36 fonti, trend storico, attenzioni operative |
+| **Inventario** | SO | Items cataloghi, source check, verdict per fonte |
+| **Scheda fonte** | SO | Deep-dive: health, inventory, source check, dataset in uso |
+| **Query SQL** | ACB + GCS | Query interattiva su parquet GCS (via lab-connectors) |
 
 ## Stack
 
-- **Streamlit** — framework app, navigazione gerarchica (`st.navigation`)
+- **Streamlit** — framework app (`st.navigation`)
 - **DuckDB** — query engine per parquet su GCS
-- **Altair** — chart dichiarativi (line chart, heatmap, ciambella, barre)
-- **Requests** — fetch metadati da GitHub raw e GCS
-- **PyYAML** — parsing `sources_registry.yaml`
+- **Altair** — chart dichiarativi
+- **lab-connectors** — path contract GCS, SQL page riutilizzabile
+- **agent-context-builder** — fonte unica metadati Lab
+
+## Deploy
+
+Streamlit Community Cloud: push su `main` → deploy automatico.
+
+## CI
+
+`ruff` lint + `pytest` (46 test). Smoke test su rete reale.
