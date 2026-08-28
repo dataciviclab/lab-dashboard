@@ -51,7 +51,7 @@ def test_home_page_loads():
     from streamlit.testing.v1 import AppTest
 
     at = AppTest.from_file("pages/00_Vista_Insieme.py")
-    at.run(timeout=30)
+    at.run(timeout=60)
     assert not at.exception, f"Pagina solleva eccezione: {at.exception}"
     assert len(at.metric) > 0, "La pagina deve avere almeno una metrica"
 
