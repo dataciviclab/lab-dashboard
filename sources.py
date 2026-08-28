@@ -1,17 +1,20 @@
 """
 Fonti dati condivise per il dashboard.
-Legge da GitHub raw (metadati) e, opzionalmente, GCS parquet via DuckDB.
+
+Architettura:
+  ACB (2 JSON) — catalogo, radar, segnali, discussions, PR, issues, analyses.
+  SO direct (5 file) — radar history, source dashboard, source reports,
+                        catalog signals, inventory report, check coverage.
+  GCS DuckDB — verify parquet.
 
 I path GCS seguono il path contract canonico definito in:
     lab-connectors/lab_connectors/gcs/paths.py  (paths.json)
-
-I loader usano st.cache_data e mostrano errori con st.error() per robustezza
-in produzione Streamlit. I fallback su dict/list vuoti evitano crash di pagina.
 """
 
-import os
+from __future__ import annotations
+
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 import duckdb
 import pandas as pd
@@ -24,32 +27,32 @@ from urllib3.util.retry import Retry
 
 LOGO_URL = "https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg"
 
-REGISTRY_BASE = "https://raw.githubusercontent.com/dataciviclab/dataset-incubator/main/registry"
+# ── URLs ──────────────────────────────────────────────────────────────────────
+ACB_BASE = "https://raw.githubusercontent.com/dataciviclab/agent-context-builder/context"
+TOPIC_INDEX_URL = f"{ACB_BASE}/topic_index.json"
+WORKSPACE_TRIAGE_URL = f"{ACB_BASE}/workspace_triage.json"
 SO_BASE = "https://raw.githubusercontent.com/dataciviclab/source-observatory/main"
 GCS_BASE = f"https://storage.googleapis.com/{CLEAN_BUCKET}"
 
-
-# ── Data fetching ─────────────────────────────────────────────────────────────────
+# ── HTTP session ──────────────────────────────────────────────────────────────
 _LAST_FETCH: dict[str, datetime] = {}
-
 
 _HTTP = requests.Session()
 _HTTP.mount(
     "https://",
     HTTPAdapter(
-        max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
+        max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
     ),
 )
 _HTTP.mount(
     "http://",
     HTTPAdapter(
-        max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
+        max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
     ),
 )
 
 
 def _fetch_json(url: str) -> Any:
-    """Fetch JSON. Solleva eccezioni — la UI gestisce l'errore."""
     r = _HTTP.get(url, timeout=15)
     r.raise_for_status()
     _LAST_FETCH[url] = datetime.now(timezone.utc)
@@ -57,254 +60,199 @@ def _fetch_json(url: str) -> Any:
 
 
 def _fetch_yaml(url: str) -> dict:
-    """Fetch YAML. Solleva eccezioni — la UI gestisce l'errore."""
     r = _HTTP.get(url, timeout=15)
     r.raise_for_status()
     _LAST_FETCH[url] = datetime.now(timezone.utc)
     return yaml.safe_load(r.text) or {}
 
 
-# ── Caricatori con cache — errori mostrati nella UI ──────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# ACB loaders
+# ══════════════════════════════════════════════════════════════════════════════
+
+
 @st.cache_data(ttl=300, show_spinner=False)
-def load_catalog():
-    """Catalogo dataset dal registry fusion (registry.json)."""
+def load_topic_index() -> dict[str, Any]:
     try:
-        reg = _fetch_json(f"{REGISTRY_BASE}/registry.json")
-        return reg
+        return _fetch_json(TOPIC_INDEX_URL)
     except Exception as e:
-        st.error(f"❌ Catalogo non disponibile: {e}")
+        st.error(f"❌ Topic index non disponibile: {e}")
         return {}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_signals():
-    """Segnali pipeline dal registry fusion (registry.json).
-
-    Il blocco ``run`` del registry viene esposto direttamente (chiave ``run``):
-    i campi ``checked_at``/``run_url`` non esistono nel registry, si derivano
-    da ``started_at`` e ``run_id``.
-    """
+def load_workspace_triage() -> dict[str, Any]:
     try:
-        reg = _fetch_json(f"{REGISTRY_BASE}/registry.json")
-        signals = []
-        for s in reg.get("signals", []):
-            sig = dict(s)
-            run = s.get("run") or {}
-            if run:
-                sig["run"] = {
-                    "status": "passed"
-                    if run.get("status") == "SUCCESS"
-                    else run.get("status", "").lower(),
-                    "run_id": run.get("run_id", ""),
-                    "checked_at": (run.get("started_at") or "")[:10],
-                    "run_url": f"https://github.com/dataciviclab/dataset-incubator/actions/runs/{run.get('run_id', '')}"
-                    if run.get("run_id")
-                    else "",
-                    "year": run.get("year"),
-                }
-            signals.append(sig)
-        return {"schema_version": reg.get("schema_version", "1"), "signals": signals}
+        return _fetch_json(WORKSPACE_TRIAGE_URL)
     except Exception as e:
-        st.error(f"❌ Segnali pipeline non disponibili: {e}")
-        return {"signals": []}
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_radar():
-    try:
-        return _fetch_json(f"{SO_BASE}/data/radar/radar_summary.json")
-    except Exception as e:
-        st.error(f"❌ Radar fonti non disponibile: {e}")
+        st.error(f"❌ Workspace triage non disponibile: {e}")
         return {}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_sources_registry():
-    try:
-        return _fetch_yaml(f"{SO_BASE}/data/radar/sources_registry.yaml")
-    except Exception as e:
-        st.error(f"❌ Registro fonti non disponibile: {e}")
-        return {}
+def load_catalog() -> dict[str, Any]:
+    """Catalogo dataset — tutti i dataset da tutti i repo, con details."""
+    ti = load_topic_index()
+    all_datasets = []
+    for source, ds_list in ti.get("datasets", {}).items():
+        for ds in ds_list:
+            entry = dict(ds)
+            entry["source"] = source
+            all_datasets.append(entry)
+    return {"datasets": all_datasets}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_radar_history():
-    """
-    Storico probe radar: transizioni stato per fonte.
-    Usato in 05_Radar.py per timeline chart.
-    """
-    try:
-        return _fetch_json(f"{SO_BASE}/data/radar/radar_history.json")
-    except Exception as e:
-        st.error(f"❌ Storico radar non disponibile: {e}")
-        return {"probes": []}
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_catalog_signals():
-    """
-    Segnali inventariali SO (report v1): signal_type, result, metric_value per fonte.
-    Usato in 06_Inventario.py per il badge segnale.
-    """
-    try:
-        return _fetch_json(f"{SO_BASE}/data/catalog/catalog_signals.json")
-    except Exception as e:
-        st.error(f"❌ Segnali catalogo non disponibili: {e}")
-        return {"signals": []}
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_sources_dashboard():
-    """
-    Report consolidato fonti SO (report v2): per ogni fonte verdict, readiness,
-    datasets_in_use, items inventory/scored/reachable.
-    Artifact canonico: source-observatory/data/reports/sources_dashboard.json
-    """
-    try:
-        return _fetch_json(f"{SO_BASE}/data/reports/sources_dashboard.json")
-    except Exception as e:
-        st.error(f"❌ Dashboard fonti non disponibile: {e}")
-        return {"sources": []}
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_source_report(source_id: str):
-    """
-    Report per-fonte SO (report v1): health, inventory (con drift vs baseline),
-    source_check, datasets_in_use, signals, operational_verdict.
-    Artifact canonico: source-observatory/data/reports/source_reports/{source_id}.json
-    """
-    try:
-        return _fetch_json(f"{SO_BASE}/data/reports/source_reports/{source_id}.json")
-    except Exception as e:
-        st.error(f"❌ Report fonte '{source_id}' non disponibile: {e}")
-        return {}
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_inventory_report():
-    """
-    Report inventario SO da GCS: stato build, righe, errore per fonte.
-    Usato in 05_Radar.py e 07_Fonti.py per badge ✅/❌ e tabella fonti.
-    """
-    try:
-        return _fetch_json(https_url("clean", "catalog_inventory_report"))
-    except Exception as e:
-        st.error(f"❌ Report inventario non disponibile: {e}")
-        return {}
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_check_coverage():
-    """
-    Items in inventario vs items checked per fonte, via DuckDB su GCS parquet.
-    Incrocia catalog_inventory_latest.parquet con source_check_results.parquet.
-    Ritorna DataFrame con: source_id, inv_items, chk_items, reachable, candidates.
-    """
-    try:
-        inv_url = https_url("clean", "catalog_inventory_latest")
-        chk_url = https_url("clean", "catalog_inventory_source_check")
-        with duckdb.connect() as con:
-            return con.sql(f"""
-                SELECT COALESCE(i.source_id, c.source_id) AS source_id,
-                       COALESCE(i.inv_items, 0)::BIGINT AS inv_items,
-                       COALESCE(c.chk_items, 0)::BIGINT AS chk_items,
-                       COALESCE(c.reachable, 0)::BIGINT AS reachable,
-                       COALESCE(c.candidates, 0)::BIGINT AS candidates
-                FROM (SELECT source_id, COUNT(*) AS inv_items
-                      FROM read_parquet('{inv_url}') GROUP BY source_id) i
-                FULL JOIN (SELECT source_id,
-                                  COUNT(*) AS chk_items,
-                                  SUM(CASE WHEN reachable THEN 1 ELSE 0 END) AS reachable,
-                                  SUM(CASE WHEN intake_candidate THEN 1 ELSE 0 END) AS candidates
-                           FROM read_parquet('{chk_url}') GROUP BY source_id) c
-                ON i.source_id = c.source_id
-                ORDER BY inv_items DESC
-            """).df()
-    except Exception as e:
-        st.error(f"❌ Check coverage non disponibile: {e}")
-        return pd.DataFrame()
-
-
-def last_fetch_time() -> Optional[datetime]:
-    if not _LAST_FETCH:
-        return None
-    return max(_LAST_FETCH.values())
-
-
-def data_freshness_note():
-    """Mostra nota 'dati caricati al ...' nella pagina chiamante."""
-    t = last_fetch_time()
-    if t:
-        st.caption(f"📡 Dati caricati: {t.strftime('%d/%m/%Y %H:%M')} UTC")
-
-
-# ── GitHub Discussions ────────────────────────────────────────────────────────────
-def _github_token():
-    """Ritorna GITHUB_TOKEN da st.secrets o env. None se assente."""
-    try:
-        return st.secrets.get("github_token") or os.environ.get("GITHUB_TOKEN")
-    except Exception:
-        return os.environ.get("GITHUB_TOKEN")
-
-
-def load_discussion_counts():
-    """
-    Ritorna conteggi per categoria: {'totale': N, 'domande': N, 'analisi': N, ...}
-    """
-    token = _github_token()
-    if not token:
-        return {"totale": 0, "domande": 0, "analisi": 0}
-
-    query = {
-        "query": """{
-            repository(owner: "dataciviclab", name: "dataciviclab") {
-                totale: discussions(first: 0) { totalCount }
-            }
-        }"""
+def load_signals() -> dict[str, Any]:
+    """Segnali pipeline — da registry_summary.signals_detail."""
+    triage = load_workspace_triage()
+    signals = []
+    for repo_info in triage.get("registry_summary", []):
+        for sig in repo_info.get("signals_detail", []):
+            entry = dict(sig)
+            if "run" not in entry or entry["run"] is None:
+                entry["run"] = {}
+            signals.append(entry)
+    return {
+        "schema_version": "2",
+        "signals": signals,
+        "pipeline_state": triage.get("pipeline_state", {}),
     }
 
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_radar() -> dict[str, Any]:
+    """Radar fonti — 36 fonti da workspace_triage.radar."""
+    triage = load_workspace_triage()
+    radar = triage.get("radar", {})
+    return {
+        "generated_at": radar.get("generated_at", ""),
+        "probe_date": radar.get("probe_date", ""),
+        "sources_total": radar.get("sources_total", 0),
+        "status_counts": {
+            "GREEN": radar.get("green", 0),
+            "YELLOW": radar.get("yellow", 0),
+            "RED": radar.get("red", 0),
+        },
+        "persistent_red": radar.get("persistent_red", 0),
+        "sources": radar.get("sources", []),
+    }
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_explorer_datasets() -> set[str]:
+    """Dataset slug Explorer — da topic_index.explorer_themes."""
+    ti = load_topic_index()
+    slugs: set[str] = set()
+    for t in ti.get("explorer_themes", []):
+        slugs.update(t.get("datasets", []))
+    return slugs
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_discussion_counts() -> dict[str, int]:
+    """Discussioni per categoria — da workspace_triage.discussions."""
+    triage = load_workspace_triage()
+    counts: dict[str, int] = {}
+    for d in triage.get("discussions", []):
+        cat = d.get("category", "Senza categoria")
+        counts[cat] = counts.get(cat, 0) + 1
+    return counts
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_discussions() -> list[dict[str, Any]]:
+    """Discussioni recenti — da workspace_triage.discussions."""
+    triage = load_workspace_triage()
+    return triage.get("discussions", [])[:15]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SO direct loaders
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_radar_history() -> dict[str, Any]:
     try:
-        r = requests.post(
-            "https://api.github.com/graphql",
-            json=query,
-            headers={"Authorization": f"bearer {token}"},
-            timeout=10,
-        )
-        data = r.json()
-        total = data["data"]["repository"]["totale"]["totalCount"]
-        return {"totale": total, "domande": "?", "analisi": "?"}
+        return _fetch_json(f"{SO_BASE}/data/radar/radar_history.json")
     except Exception:
-        return {"totale": 0, "domande": 0, "analisi": 0}
+        return {}
 
 
-# ── DuckDB (opzionale — attualmente usato solo per verifica spot) ────────────────
+@st.cache_data(ttl=300, show_spinner=False)
+def load_sources_registry() -> dict[str, Any]:
+    """Registro fonti — da SO sources_registry.yaml (per-source: protocol, observation_mode)."""
+    try:
+        return _fetch_yaml(f"{SO_BASE}/data/radar/sources_registry.yaml")
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_sources_dashboard() -> dict[str, Any]:
+    try:
+        return _fetch_json(f"{SO_BASE}/data/reports/sources_dashboard.json")
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_source_report(source_id: str) -> dict[str, Any]:
+    try:
+        return _fetch_json(f"{SO_BASE}/data/reports/source_reports/{source_id}.json")
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_catalog_signals() -> dict[str, Any]:
+    """Segnali catalogo — da SO catalog_signals.json (per-source: result, metric_value)."""
+    try:
+        return _fetch_json(f"{SO_BASE}/data/catalog/catalog_signals.json")
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def load_inventory_report() -> dict[str, Any]:
+    try:
+        return _fetch_json(f"{GCS_BASE}/catalog_inventory/catalog_inventory_report.json")
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def load_check_coverage() -> pd.DataFrame:
+    try:
+        url = f"{GCS_BASE}/catalog_inventory/catalog_inventory_latest.parquet"
+        with duckdb.connect() as con:
+            return con.sql(
+                "SELECT source_id, inv_items, chk_items FROM read_parquet(?)", params=[url]
+            ).df()
+    except Exception:
+        return pd.DataFrame(columns=["source_id", "inv_items", "chk_items"])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GCS helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+
 def duckdb_query(sql: str) -> pd.DataFrame:
-    """Esegue SQL su DuckDB (in-memory). Chiude la connessione al termine."""
     with duckdb.connect() as con:
         return con.sql(sql).df()
 
 
-def verify_parquet(slug: str, year: int) -> dict:
-    """
-    Verifica se un parquet GCS esiste e ha dati.
-    Usa parametri DuckDB, non f-string, per evitare SQL injection.
-    Ritorna {'slug': ..., 'year': ..., 'records': N} o solleva eccezione.
-    """
+def verify_parquet(slug: str, year: int) -> dict[str, Any]:
     path = https_url("clean", "clean_parquet", slug=slug, year=year)
     with duckdb.connect() as con:
         df = con.sql("SELECT COUNT(*) AS records FROM read_parquet(?)", params=[path]).df()
-    records = int(df["records"].iloc[0])
-    return {"slug": slug, "year": year, "records": records}
+    return {"slug": slug, "year": year, "records": int(df["records"].iloc[0])}
 
 
-# ── Explorer e Analisi (per pipeline end-to-end) ──────────────────────────────
+# ── Utilities ─────────────────────────────────────────────────────────────────
 
-DE_BASE = "https://raw.githubusercontent.com/dataciviclab/data-explorer/main/src/data"
-DCL_BASE = "https://raw.githubusercontent.com/dataciviclab/dataciviclab/main/analisi"
-
-
-# Mapping slug dataset-incubator → slug data-explorer (pochi casi con nome diverso).
 DE_SLUG_MAP = {
     "aifa_spesa_consumo": "spesa-farmaceutica",
     "ispra_ru_base": "rifiuti-urbani",
@@ -317,83 +265,10 @@ DE_SLUG_MAP = {
 
 
 def de_slug(di_slug: str) -> str:
-    """Converti slug dataset-incubator → slug data-explorer."""
     return DE_SLUG_MAP.get(di_slug, di_slug.replace("_", "-"))
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_explorer_datasets() -> set[str]:
-    """Dataset slug DE presenti su data-explorer.
-
-    Scarica e fa il parse di ``themes.json.py`` usando ``ast.literal_eval``
-    (sicuro: nessuna esecuzione di codice remoto). Restituisce l'insieme
-    di tutti gli slug DE presenti negli themes.
-    """
-    import ast
-
-    try:
-        r = _HTTP.get(f"{DE_BASE}/themes.json.py", timeout=15)
-        r.raise_for_status()
-        # themes.json.py contiene anche ``json.dump(themes, ...)`` dopo l'array.
-        # Usiamo AST per estrarre solo il nodo ``themes`` senza eseguire codice.
-        module = ast.parse(r.text)
-        themes = None
-        for node in module.body:
-            if isinstance(node, ast.Assign):
-                for target in node.targets:
-                    if isinstance(target, ast.Name) and target.id == "themes":
-                        themes = ast.literal_eval(node.value)
-                        break
-                if themes is not None:
-                    break
-        if themes is None:
-            return set()
-        slugs: set[str] = set()
-        for t in themes:
-            slugs.update(t.get("datasets", []))
-        return slugs
-    except Exception:
-        # Fallback silenzioso: upstream irraggiungibile
-        return set()
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_analysis_registry() -> dict[str, str]:
-    """Mappa slug analisi → slug dataset (da README frontmatter).
-
-    Usa GitHub API per listare le directory in ``analisi/``, poi legge
-    il ``dataset_slug`` dal frontmatter YAML di ogni README.md.
-    Restituisce {analysis_slug: dataset_slug}.
-    """
-    try:
-        r = _HTTP.get(
-            "https://api.github.com/repos/dataciviclab/dataciviclab/contents/analisi",
-            timeout=15,
-        )
-        r.raise_for_status()
-        items = r.json()
-    except Exception:
-        # Fallback silenzioso: upstream irraggiungibile
-        return {}
-
-    registry: dict[str, str] = {}
-    for item in items:
-        if item["type"] != "dir":
-            continue
-        slug = item["name"]
-        if slug in ("registry", "_template"):
-            continue
-
-        # Legge README.md e cerca dataset_slug nel frontmatter
-        try:
-            rr = _HTTP.get(f"{DCL_BASE}/{slug}/README.md", timeout=10)
-            rr.raise_for_status()
-            for line in rr.text.splitlines():
-                if line.startswith("dataset_slug:"):
-                    ds_slug = line.split(":", 1)[1].strip()
-                    registry[slug] = ds_slug
-                    break
-        except Exception:
-            pass
-
-    return registry
+def data_freshness_note() -> None:
+    if _LAST_FETCH:
+        t = max(_LAST_FETCH.values())
+        st.caption(f"📡 Dati caricati: {t.strftime('%d/%m/%Y %H:%M')} UTC")

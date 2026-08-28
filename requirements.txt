@@ -8,4 +8,7 @@ pytest>=9.1.1
 pytest-cov>=7.1.0
 
 # Path contract GCS — vedere lab-connectors/gcs/paths.py
-lab-connectors @ git+https://github.com/dataciviclab/lab-connectors.git
+lab-connectors[duckdb] @ git+https://github.com/dataciviclab/lab-connectors.git
+
+# ACB artifacts (topic_index + workspace_triage) — fonte unica metadati
+agent-context-builder @ git+https://github.com/dataciviclab/agent-context-builder.git

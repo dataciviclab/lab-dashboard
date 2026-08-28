@@ -1,7 +1,4 @@
-"""
-Vista d'insieme — polso del DataCivicLab.
-Metriche e stato da Source Observatory, Dataset Incubator e Community.
-"""
+"""Vista d'insieme — polso del DataCivicLab."""
 
 import altair as alt
 import pandas as pd
@@ -10,200 +7,160 @@ import streamlit as st
 from sources import (
     data_freshness_note,
     load_catalog,
-    load_check_coverage,
-    load_inventory_report,
     load_radar,
     load_signals,
-    load_sources_dashboard,
-    load_sources_registry,
+    load_workspace_triage,
 )
 
 st.title("📊 Vista d'insieme")
 
-st.markdown("Salute del Lab: dalle fonti monitorate ai dataset pubblicati.")
-
-# ── Carica tutti i dati ──────────────────────────────────────────
+# ── Carica dati ─────────────────────────────────────────────────
+triage = load_workspace_triage()
 radar = load_radar()
-registry = load_sources_registry()
-coverage_df = load_check_coverage()
-inventory_report = load_inventory_report()
 catalog = load_catalog()
-pipeline_signals = load_signals()
+signals_data = load_signals()
 
 sources = radar.get("sources", [])
 status_counts = radar.get("status_counts", {})
 persistent_red = radar.get("persistent_red", 0)
-inventory_sources = inventory_report.get("sources", {})
 datasets = catalog.get("datasets", [])
-sigs = pipeline_signals.get("signals", [])
+sigs = signals_data.get("signals", [])
+
+prs = triage.get("prs", [])
+issues = triage.get("issues", [])
+discussions = triage.get("discussions", [])
 
 # Conteggi
-n_registry = len(registry)
-n_radar = len(sources)
+tot = len(datasets)
+published = sum(1 for d in datasets if d.get("stage") == "published")
+incubating = tot - published
 n_green = status_counts.get("GREEN", 0)
 n_yellow = status_counts.get("YELLOW", 0)
 n_red = status_counts.get("RED", 0)
+ok_count = sum(1 for s in sigs if s.get("status") == "ok")
+warn_count = sum(1 for s in sigs if s.get("status") == "warn")
+error_count = sum(1 for s in sigs if s.get("status") == "error")
 
-n_inv_ok = sum(1 for v in inventory_sources.values() if v.get("status") == "ok")
-
-tot_inv = int(coverage_df["inv_items"].sum()) if not coverage_df.empty else 0
-tot_chk = int(coverage_df["chk_items"].sum()) if not coverage_df.empty else 0
-coverage_pct = round(tot_chk / tot_inv * 100, 1) if tot_inv else 0
-
-n_published = sum(1 for ds in datasets if ds.get("stage") == "published")
-n_incubating = sum(1 for ds in datasets if ds.get("stage") == "incubating")
-n_pipeline_err = sum(1 for sig in sigs if sig.get("status") == "error")
-
-# ── KPI ──────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════
+# KPI COMPATTA
+# ══════════════════════════════════════════════════════════════════
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("📡 Radar fonti", f"{n_radar}/{n_registry}", f"{n_green}🟢 {n_yellow}🟡 {n_red}🔴")
-col2.metric("📦 Items inventario", f"{tot_inv:,}", f"{coverage_pct}% checked ({tot_chk:,})")
-col3.metric(
-    "📚 Dataset", f"{len(datasets)}", f"{n_published} pubblicati · {n_incubating} in incubazione"
-)
-col4.metric("✅ Pubblicati", n_published, f"{n_incubating} in incubazione")
+col1.metric("📡 Radar", f"{n_green + n_yellow + n_red}", f"{n_green}🟢 {n_yellow}🟡 {n_red}🔴")
+col2.metric("📚 Dataset", f"{tot}", f"{published} pubblicati")
+col3.metric("⚡ Pipeline", f"{ok_count}", f"{warn_count}⚠️ {error_count}❌")
+col4.metric("🔀 PR", len(prs), f"{len(issues)} issues · {len(discussions)} disc")
 
 if persistent_red:
-    st.warning(
-        f"🔴 **{persistent_red} fonte/i persistentemente RED** "
-        "(streak > 7 giorni) — vedi Radar per dettaglio"
-    )
-
-if n_pipeline_err:
-    st.error(f"❌ **{n_pipeline_err} pipeline in errore** — vedi Pipeline CI")
+    st.warning(f"🔴 **{persistent_red} fonte/i RED persistente** (streak > 7gg)")
+if error_count:
+    st.error(f"❌ **{error_count} pipeline in errore**")
 
 st.markdown("---")
 
 # ══════════════════════════════════════════════════════════════════
-# SOURCE OBSERVATORY
+# RADAR — barra segmentata
 # ══════════════════════════════════════════════════════════════════
-st.subheader("Source Observatory")
+st.subheader("Radar fonti")
 
-# -- Stato radar --
-col_s1, col_s2, col_s3 = st.columns([1, 1, 1])
+radar_df = pd.DataFrame(
+    [
+        {"stato": "GREEN", "n": n_green},
+        {"stato": "YELLOW", "n": n_yellow},
+        {"stato": "RED", "n": n_red},
+    ]
+)
+radar_df = radar_df[radar_df["n"] > 0]  # nascondi zero
 
-with col_s1:
-    st.metric("🟢 GREEN", n_green)
-with col_s2:
-    st.metric("🟡 YELLOW", n_yellow)
-with col_s3:
-    st.metric("🔴 RED", n_red)
-
-# -- KPI aggregati SO (report v2) --
-so_dashboard = load_sources_dashboard()
-so_summary = so_dashboard.get("summary", {})
-by_verdict = so_summary.get("by_verdict", {})
-n_datasets_use = so_summary.get("tot_datasets_in_use", 0)
-n_inv_changed = by_verdict.get("INVENTORY_CHANGED", 0)
-n_partial = by_verdict.get("PARTIALLY_SCOPED", 0)
-
-if so_summary:
-    col_s4, col_s5 = st.columns(2)
-    with col_s4:
-        st.metric("🧩 Dataset in uso", f"{n_datasets_use:,}")
-    with col_s5:
-        st.metric(
-            "🔄 Inventario cambiato",
-            f"{n_inv_changed}",
-            f"{n_partial} scoping parziale",
-        )
-
-# Bar chart radar: barra per stato
-if n_radar:
-    radar_df = pd.DataFrame(
-        [
-            {"stato": "GREEN", "conteggio": n_green, "colore": "#16a34a"},
-            {"stato": "YELLOW", "conteggio": n_yellow, "colore": "#fbbf24"},
-            {"stato": "RED", "conteggio": n_red, "colore": "#dc2626"},
-        ]
-    )
-    radar_bars = (
+if not radar_df.empty:
+    chart = (
         alt.Chart(radar_df)
-        .mark_bar()
+        .mark_bar(height=30)
         .encode(
-            x=alt.X("stato:N", title=None, sort=["GREEN", "YELLOW", "RED"]),
-            y=alt.Y("conteggio:Q", title="Fonti"),
+            x=alt.X("n:Q", stack="normalize", title=None, axis=None),
             color=alt.Color(
                 "stato:N",
                 scale={
                     "domain": ["GREEN", "YELLOW", "RED"],
                     "range": ["#16a34a", "#fbbf24", "#dc2626"],
                 },
-                title=None,
                 legend=None,
             ),
-            tooltip=["stato:N", "conteggio:Q"],
+            tooltip=["stato", "n"],
         )
-        .properties(height=150)
+        .properties(height=30)
     )
-    st.altair_chart(radar_bars, width="stretch")
+    st.altair_chart(chart, width="stretch")
+    # Legenda manuale
+    parts = []
+    if n_green:
+        parts.append(f"🟢 {n_green}")
+    if n_yellow:
+        parts.append(f"🟡 {n_yellow}")
+    if n_red:
+        parts.append(f"🔴 {n_red}")
+    st.caption(f"{' · '.join(parts)} — {len(sources)} fonti totali")
 
+# ── Fonti RED non healthy ───────────────────────────────────────
+unhealthy = [s for s in sources if s.get("status") in ("YELLOW", "RED")]
+if unhealthy:
+    with st.expander(f"⚠️ {len(unhealthy)} fonti non healthy", expanded=False):
+        for s in unhealthy:
+            icon = "🔴" if s.get("status") == "RED" else "🟡"
+            streak = s.get("red_streak", 0)
+            st.write(
+                f"{icon} **{s['id']}** — {s.get('note', '')}{' (streak ' + str(streak) + ')' if streak else ''}"
+            )
 
 st.markdown("---")
 
 # ══════════════════════════════════════════════════════════════════
-# DATASET
+# DATASET PER FONTE
 # ══════════════════════════════════════════════════════════════════
-st.subheader("Dataset")
+st.subheader("Dataset per fonte")
 
-stages = sorted(set(d.get("stage", "unknown") for d in datasets))
-stage_filter = st.selectbox("Filtra per stage", ["Tutti"] + stages)
+by_source: dict[str, list[dict]] = {}
+for ds in datasets:
+    sid = ds.get("source_id") or ds.get("source", "unknown")
+    by_source.setdefault(sid, []).append(ds)
 
-search = st.text_input("Cerca dataset", placeholder="slug, nome o descrizione...")
+# Top 15 fonti
+top = sorted(by_source.items(), key=lambda x: -len(x[1]))[:15]
+chart_df = pd.DataFrame([{"fonte": s[:30], "n": len(ds)} for s, ds in top])
 
-filtered = datasets
-if stage_filter != "Tutti":
-    filtered = [d for d in filtered if d.get("stage") == stage_filter]
-if search:
-    q = search.lower()
-    filtered = [
-        d
-        for d in filtered
-        if q in d.get("slug", "").lower()
-        or q in d.get("name", "").lower()
-        or q in d.get("description", "").lower()
-    ]
-
-st.write(f"**{len(filtered)} dataset** trovati")
-
-for ds in filtered:
-    period = ds.get("period", {})
-    yrs = f"{period.get('start', '?')}–{period.get('end', '?')}" if period else "?"
-    with st.expander(f"**{ds.get('slug', '?')}** — {ds.get('stage', '?')}"):
-        st.write(f"**Nome:** {ds.get('name', '—')}")
-        st.write(f"**Descrizione:** {ds.get('description', '—')}")
-        st.write(f"**Fonte:** {ds.get('source', '?')}")
-        st.write(f"**Anni:** {yrs}")
-        loc = ds.get("location", {})
-        if loc.get("path"):
-            st.write(f"**Path GCS:** `{loc['path']}`")
-
-        # Schema colonne
-        cols = ds.get("columns", [])
-        if cols:
-            st.markdown("**Schema colonne**")
-            col_df = pd.DataFrame(
-                [
-                    {
-                        "colonna": c.get("name", "?"),
-                        "tipo": c.get("type", "?"),
-                        "ruolo": c.get("role", "?"),
-                        "descrizione": c.get("description", ""),
-                    }
-                    for c in cols
-                ]
-            )
-            st.dataframe(col_df, hide_index=True, width="stretch")
-
-# -- Alert run falliti --
-run_failed = [s for s in sigs if s.get("run", {}).get("status") == "failed"]
-if run_failed:
-    st.warning(
-        f"⚠️ **{len(run_failed)} candidate con run CI fallito** "
-        f"— vai a ⚙️ Pipeline candidate per dettagli"
+if not chart_df.empty:
+    chart = (
+        alt.Chart(chart_df)
+        .mark_bar(color="#3b82f6")
+        .encode(
+            y=alt.Y("fonte:N", title=None, sort="-x"),
+            x=alt.X("n:Q", title="Dataset"),
+            tooltip=["fonte", "n"],
+        )
+        .properties(height=max(22 * len(chart_df), 80))
     )
+    st.altair_chart(chart, width="stretch")
 
-if n_pipeline_err:
-    st.warning(f"⚠️ **{n_pipeline_err} pipeline in errore**")
+# Tabella compatta fonti
+st.write(f"**{len(by_source)} fonti** · {tot} dataset totali")
+table_rows = []
+for s, ds in top:
+    pub = sum(1 for d in ds if d.get("stage") == "published")
+    inc = sum(1 for d in ds if d.get("stage") == "incubating")
+    stage_str = "+".join(filter(None, [f"{pub}pub" if pub else "", f"{inc}inc" if inc else ""]))
+    table_rows.append({"fonte": s, "n": len(ds), "stage": stage_str})
+
+if table_rows:
+    df_table = pd.DataFrame(table_rows)
+    st.dataframe(
+        df_table,
+        column_config={
+            "fonte": "Fonte",
+            "n": st.column_config.NumberColumn("Dataset", format="%d"),
+            "stage": "Stage",
+        },
+        hide_index=True,
+        width="stretch",
+        height=min(35 * len(table_rows) + 35, 300),
+    )
 
 data_freshness_note()
