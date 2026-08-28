@@ -42,15 +42,13 @@ def test_page_is_valid_python(path):
 
 @pytest.mark.smoke
 def test_home_page_loads():
-    """Smoke test: Vista d'insieme si carica senza eccezioni.
+    """Smoke test: Vista d'insieme si carica senza eccezioni."""
+    from pathlib import Path
 
-    Usa AppTest di Streamlit per avviare la pagina in un ambiente simulato.
-    Esegue richieste HTTP reali (GitHub raw, GCS) — se la rete è lenta
-    o inaccessibile, il test fallisce con timeout.
-    """
     from streamlit.testing.v1 import AppTest
 
-    at = AppTest.from_file("pages/00_Vista_Insieme.py")
+    page = Path(__file__).resolve().parent.parent / "pages" / "00_Vista_Insieme.py"
+    at = AppTest.from_file(str(page))
     at.run(timeout=60)
     assert not at.exception, f"Pagina solleva eccezione: {at.exception}"
     assert len(at.metric) > 0, "La pagina deve avere almeno una metrica"
