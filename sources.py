@@ -4,7 +4,7 @@ Fonti dati condivise per il dashboard.
 Architettura:
   ACB (2 JSON) — catalogo, radar, segnali, discussions, PR, issues, analyses.
   SO direct (5 file) — radar history, source dashboard, source reports,
-                        catalog signals, inventory report, check coverage.
+                        catalog signals, inventory report.
   GCS DuckDB — verify parquet.
 
 I path GCS seguono il path contract canonico definito in:
@@ -17,7 +17,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 import duckdb
-import pandas as pd
 import requests
 import streamlit as st
 import yaml
@@ -150,14 +149,24 @@ def load_explorer_datasets() -> set[str]:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_discussion_counts() -> dict[str, int]:
-    """Discussioni per categoria — da workspace_triage.discussions."""
+def load_analyses() -> list[dict[str, Any]]:
+    """Analisi pubblicate — da topic_index.analyses."""
+    ti = load_topic_index()
+    return ti.get("analyses", [])
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_operational_topics() -> dict[str, Any]:
+    """Temi operativi (pipeline/governance/infrastructure) — da topic_index."""
+    ti = load_topic_index()
+    return ti.get("operational_topics", {})
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_source_health() -> dict[str, Any]:
+    """Salute fonti: regressions + drift alerts — da workspace_triage.source_health."""
     triage = load_workspace_triage()
-    counts: dict[str, int] = {}
-    for d in triage.get("discussions", []):
-        cat = d.get("category", "Senza categoria")
-        counts[cat] = counts.get(cat, 0) + 1
-    return counts
+    return triage.get("source_health", {})
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -176,7 +185,8 @@ def load_discussions() -> list[dict[str, Any]]:
 def load_radar_history() -> dict[str, Any]:
     try:
         return _fetch_json(f"{SO_BASE}/data/radar/radar_history.json")
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Radar history non disponibile: {e}")
         return {}
 
 
@@ -185,7 +195,8 @@ def load_sources_registry() -> dict[str, Any]:
     """Registro fonti — da SO sources_registry.yaml (per-source: protocol, observation_mode)."""
     try:
         return _fetch_yaml(f"{SO_BASE}/data/radar/sources_registry.yaml")
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Sources registry non disponibile: {e}")
         return {}
 
 
@@ -193,7 +204,8 @@ def load_sources_registry() -> dict[str, Any]:
 def load_sources_dashboard() -> dict[str, Any]:
     try:
         return _fetch_json(f"{SO_BASE}/data/reports/sources_dashboard.json")
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Sources dashboard non disponibile: {e}")
         return {}
 
 
@@ -201,7 +213,8 @@ def load_sources_dashboard() -> dict[str, Any]:
 def load_source_report(source_id: str) -> dict[str, Any]:
     try:
         return _fetch_json(f"{SO_BASE}/data/reports/source_reports/{source_id}.json")
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Source report non disponibile per '{source_id}': {e}")
         return {}
 
 
@@ -210,7 +223,8 @@ def load_catalog_signals() -> dict[str, Any]:
     """Segnali catalogo — da SO catalog_signals.json (per-source: result, metric_value)."""
     try:
         return _fetch_json(f"{SO_BASE}/data/catalog/catalog_signals.json")
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Catalog signals non disponibile: {e}")
         return {}
 
 
@@ -218,30 +232,14 @@ def load_catalog_signals() -> dict[str, Any]:
 def load_inventory_report() -> dict[str, Any]:
     try:
         return _fetch_json(f"{GCS_BASE}/catalog_inventory/catalog_inventory_report.json")
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Inventory report non disponibile: {e}")
         return {}
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def load_check_coverage() -> pd.DataFrame:
-    try:
-        url = f"{GCS_BASE}/catalog_inventory/catalog_inventory_latest.parquet"
-        with duckdb.connect() as con:
-            return con.sql(
-                "SELECT source_id, inv_items, chk_items FROM read_parquet(?)", params=[url]
-            ).df()
-    except Exception:
-        return pd.DataFrame(columns=["source_id", "inv_items", "chk_items"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GCS helpers
 # ══════════════════════════════════════════════════════════════════════════════
-
-
-def duckdb_query(sql: str) -> pd.DataFrame:
-    with duckdb.connect() as con:
-        return con.sql(sql).df()
 
 
 def verify_parquet(slug: str, year: int) -> dict[str, Any]:

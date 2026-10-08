@@ -1,9 +1,9 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lab-dashboard"
+name = "dataciviclab-dashboard"
 version = "0.1.0"
 description = "Dashboard operativi interni DataCivicLab — pipeline, radar, metriche"
 readme = "README.md"
@@ -19,7 +19,6 @@ dependencies = [
     "requests>=2.34.2",
     "pyyaml>=6.0.3",
     "lab-connectors[duckdb] @ git+https://github.com/dataciviclab/lab-connectors.git",
-    "agent-context-builder @ git+https://github.com/dataciviclab/agent-context-builder.git",
 ]
 
 [project.optional-dependencies]
