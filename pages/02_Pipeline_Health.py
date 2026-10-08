@@ -3,7 +3,7 @@
 import pandas as pd
 import streamlit as st
 
-from sources import data_freshness_note, load_workspace_triage
+from sources import data_freshness_note, load_operational_topics, load_workspace_triage
 
 st.title("📦 Registry / Repo")
 st.markdown(
@@ -106,6 +106,23 @@ if inactive:
     for r in inactive:
         st.write(f"- **{r['repo']}** — {r.get('reason', 'registry_not_found')}")
 
+# ── Temi operativi (topic_index.operational_topics) ──────────────
+topics = load_operational_topics()
+if topics:
+    st.markdown("---")
+    st.subheader("Temi operativi")
+    cols = st.columns(len(topics))
+    for col, (key, t) in zip(cols, topics.items()):
+        with col:
+            st.markdown(f"**{key.title()}**")
+            st.caption(t.get("summary", ""))
+            if t.get("repos"):
+                st.caption("Repo: " + ", ".join(t["repos"]))
+            if t.get("next"):
+                st.caption(f"→ {t['next']}")
+
 st.markdown("---")
-st.caption("Dati: ACB (workspace_triage.json → registry_summary)")
+st.caption(
+    "Dati: ACB (workspace_triage.json → registry_summary, topic_index.json → operational_topics)"
+)
 data_freshness_note()

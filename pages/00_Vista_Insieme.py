@@ -9,6 +9,7 @@ from sources import (
     load_catalog,
     load_radar,
     load_signals,
+    load_source_health,
     load_workspace_triage,
 )
 
@@ -54,6 +55,35 @@ if persistent_red:
     st.warning(f"🔴 **{persistent_red} fonte/i RED persistente** (streak > 7gg)")
 if error_count:
     st.error(f"❌ **{error_count} pipeline in errore**")
+
+# ── Alert Lab (warnings ACB + regressions/drift da source_health) ─
+warnings_list = triage.get("warnings", []) or []
+source_health = load_source_health()
+regressions = source_health.get("regressions", []) or []
+drift_alerts = source_health.get("alerts", []) or []
+
+if warnings_list or regressions or drift_alerts:
+    with st.expander(
+        f"⚠️ Alert Lab — {len(warnings_list) + len(regressions) + len(drift_alerts)} attivi",
+        expanded=False,
+    ):
+        for w in warnings_list:
+            st.warning(w)
+        for r in regressions:
+            st.error(
+                f"📉 Regressione **{r.get('source', '?')}** — {r.get('detail', '')}"
+                f" · Azione: {r.get('suggested_action', '—')}"
+            )
+        for a in drift_alerts:
+            st.warning(
+                f"🚨 **{a.get('source', '?')}** ({a.get('signal_type', '—')})"
+                f" — {a.get('detail', '')}"
+                f" · Azione: {a.get('suggested_action', '—')}"
+            )
+elif source_health.get("available"):
+    st.caption(
+        f"✅ Nessun alert attivo — {source_health.get('sources_checked', 0)} fonti verificate"
+    )
 
 st.markdown("---")
 

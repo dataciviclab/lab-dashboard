@@ -39,12 +39,14 @@ pages = {
         st.Page("pages/06_Inventario.py", title="Inventario", icon="📦"),
         st.Page("pages/07_Fonte.py", title="Scheda fonte", icon="🔍"),
     ],
-    "Dataset Incubator": [
-        st.Page("pages/02_Pipeline_Health.py", title="Registry / Repo", icon="📦"),
-    ],
     "Catalogo": [
+        st.Page("pages/02_Pipeline_Health.py", title="Registry / Repo", icon="📦"),
         st.Page("pages/01_Dataset_Explorer.py", title="Catalogo", icon="📚"),
+        st.Page("pages/03_Analisi.py", title="Analisi", icon="🧩"),
         st.Page("pages/09_Query_SQL.py", title="Query SQL", icon="🧪"),
+    ],
+    "Community": [
+        st.Page("pages/04_Community.py", title="PR · Issues · Discussions", icon="💬"),
     ],
 }
 
