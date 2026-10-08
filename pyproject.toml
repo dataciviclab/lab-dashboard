@@ -28,6 +28,11 @@ dev = [
     "ruff>=0.8.0",
 ]
 
+# App Streamlit non pacchettizzata: modulo unico (app.py + sources.py).
+# pages/ e static/ sono dati a runtime, non package.
+[tool.setuptools]
+py-modules = ["app", "sources"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
