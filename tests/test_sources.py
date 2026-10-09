@@ -15,12 +15,14 @@ from sources import (
     _fetch_json,
     _fetch_yaml,
     de_slug,
+    load_analyses,
     load_catalog,
     load_catalog_signals,
-    load_discussion_counts,
     load_explorer_datasets,
+    load_operational_topics,
     load_radar,
     load_signals,
+    load_source_health,
     load_sources_registry,
 )
 
@@ -79,7 +81,13 @@ _MOCK_TOPIC_INDEX = {
         },
     ],
     "analyses_by_dataset": {"ade_cinque_per_mille": ["cinque-per-mille"]},
-    "operational_topics": {},
+    "operational_topics": {
+        "pipeline": {
+            "summary": "Ciclo di vita del dato",
+            "repos": ["toolkit"],
+            "next": "Flusso completo run + push GCS",
+        },
+    },
 }
 
 _MOCK_WORKSPACE_TRIAGE = {
@@ -358,16 +366,6 @@ class TestLoadCatalogSignals:
 
 
 @pytest.mark.contract
-class TestLoadDiscussionCounts:
-    """Contratto: load_discussion_counts() conta per categoria."""
-
-    def test_counts_by_category(self):
-        with patch("sources._fetch_json", return_value=_MOCK_WORKSPACE_TRIAGE):
-            result = load_discussion_counts()
-        assert result == {"Domande": 1}
-
-
-@pytest.mark.contract
 class TestLoadExplorerDatasets:
     """Contratto: load_explorer_datasets() estrae slug da explorer_themes."""
 
@@ -380,6 +378,44 @@ class TestLoadExplorerDatasets:
         with patch("sources._fetch_json", side_effect=Exception("fail")):
             result = load_explorer_datasets()
         assert result == set()
+
+
+@pytest.mark.contract
+class TestLoadAnalyses:
+    """Contratto: load_analyses() restituisce la lista analyses da topic_index."""
+
+    def test_returns_analyses_list(self):
+        with patch("sources._fetch_json", return_value=_MOCK_TOPIC_INDEX):
+            result = load_analyses()
+        assert len(result) == 1
+        assert result[0]["slug"] == "cinque-per-mille"
+
+    def test_returns_empty_on_error(self):
+        with patch("sources._fetch_json", side_effect=Exception("fail")):
+            assert load_analyses() == []
+
+
+@pytest.mark.contract
+class TestLoadOperationalTopics:
+    """Contratto: load_operational_topics() restituisce il dict operational_topics."""
+
+    def test_returns_topics(self):
+        with patch("sources._fetch_json", return_value=_MOCK_TOPIC_INDEX):
+            result = load_operational_topics()
+        assert "pipeline" in result
+        assert result["pipeline"]["repos"] == ["toolkit"]
+
+
+@pytest.mark.contract
+class TestLoadSourceHealth:
+    """Contratto: load_source_health() restituisce regressions + alerts da triage."""
+
+    def test_returns_health(self):
+        with patch("sources._fetch_json", return_value=_MOCK_WORKSPACE_TRIAGE):
+            result = load_source_health()
+        assert result["available"] is True
+        assert result["sources_checked"] == 36
+        assert result["regressions"] == []
 
 
 @pytest.mark.contract

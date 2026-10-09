@@ -1,14 +1,12 @@
+# Pin export per Streamlit Cloud — source of truth: pyproject.toml
+# (dev deps omesse; le dipendenze git sono richieste dal deploy su Streamlit Community Cloud)
+
 streamlit>=1.62.0
 altair>=6.2.2
 pandas>=3.0.5
 duckdb>=1.5.5
 requests>=2.34.2
 pyyaml>=6.0.3
-pytest>=9.1.1
-pytest-cov>=7.1.0
 
 # Path contract GCS — vedere lab-connectors/gcs/paths.py
 lab-connectors[duckdb] @ git+https://github.com/dataciviclab/lab-connectors.git
-
-# ACB artifacts (topic_index + workspace_triage) — fonte unica metadati
-agent-context-builder @ git+https://github.com/dataciviclab/agent-context-builder.git

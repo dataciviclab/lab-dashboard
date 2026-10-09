@@ -18,6 +18,8 @@ PAGES = [
     "pages/00_Vista_Insieme.py",
     "pages/01_Dataset_Explorer.py",
     "pages/02_Pipeline_Health.py",
+    "pages/03_Analisi.py",
+    "pages/04_Community.py",
     "pages/05_Radar.py",
     "pages/06_Inventario.py",
     "pages/07_Fonte.py",
