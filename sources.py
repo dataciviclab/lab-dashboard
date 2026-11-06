@@ -21,6 +21,7 @@ import requests
 import streamlit as st
 import yaml
 from lab_connectors.gcs.paths import CLEAN_BUCKET, https_url
+from lab_connectors.registry import to_url_slug
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -251,19 +252,14 @@ def verify_parquet(slug: str, year: int) -> dict[str, Any]:
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
-DE_SLUG_MAP = {
-    "aifa_spesa_consumo": "spesa-farmaceutica",
-    "ispra_ru_base": "rifiuti-urbani",
-    "civile_flussi": "flussi-giustizia-civile",
-    "terna_capacita_rinnovabile": "capacita-rinnovabile",
-    "terna_electricity_by_source": "produzione-elettrica-fonti",
-    "bdap_entrate_stato": "entrate-stato",
-    "inps_pensioni_trimestrale": "pensioni-inps",
-}
-
 
 def de_slug(di_slug: str) -> str:
-    return DE_SLUG_MAP.get(di_slug, di_slug.replace("_", "-"))
+    """Slug interno → slug URL Explorer.
+
+    Alias sottile di ``lab_connectors.registry.to_url_slug`` (fonte unica
+    degli override editoriali): mantenuto perché le pagine lo importano.
+    """
+    return to_url_slug(di_slug)
 
 
 def data_freshness_note() -> None:

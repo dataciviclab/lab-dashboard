@@ -431,3 +431,9 @@ class TestDeSlug:
 
     def test_no_underscore(self):
         assert de_slug("nodash") == "nodash"
+
+    def test_override_presenti_solo_nel_registry_condiviso(self):
+        """Override che la vecchia mappa locale non aveva (link 404)."""
+        assert de_slug("istat_housing_crowding") == "housing-crowding"
+        assert de_slug("mit_incidentalita_mensile") == "mit-incidentalita"
+        assert de_slug("popolazione_istat_comunale_2019_2025") == "popolazione-istat"
