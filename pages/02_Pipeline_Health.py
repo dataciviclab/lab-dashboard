@@ -7,7 +7,7 @@ from sources import data_freshness_note, load_operational_topics, load_workspace
 
 st.title("📦 Registry / Repo")
 st.markdown(
-    "Stato dei registry di ogni repo del Lab: dataset, mart, segnali pipeline e salute complessiva."
+    "Stato dei registry di ogni repo del Lab: dataset, mart, check aperti e salute complessiva."
 )
 
 # ── Carica dati ─────────────────────────────────────────────────
@@ -21,7 +21,7 @@ inactive = [r for r in registry_summary if not r.get("available")]
 # ── KPI aggregati ───────────────────────────────────────────────
 tot_ds = sum(r.get("datasets", 0) for r in active)
 tot_marts = sum(r.get("marts", 0) for r in active)
-tot_signals = sum(r.get("signals", 0) for r in active)
+tot_checks = sum(r.get("checks", 0) for r in active)
 tot_gcs = sum(r.get("gcs", 0) for r in active)
 
 st.subheader("Panoramica")
@@ -29,7 +29,7 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("📦 Repo con registry", f"{len(active)}", f"{len(inactive)} senza registry")
 col2.metric("📚 Dataset totali", f"{tot_ds}")
 col3.metric("📊 Mart totali", f"{tot_marts}")
-col4.metric("📡 Segnali totali", f"{tot_signals}")
+col4.metric("🩺 Check aperti", f"{tot_checks}")
 
 st.markdown("---")
 
@@ -38,21 +38,14 @@ st.subheader("Dettaglio repo")
 
 rows = []
 for r in active:
-    sigs = r.get("signals_detail", [])
-    ok = sum(1 for s in sigs if s.get("status") == "ok")
-    warn = sum(1 for s in sigs if s.get("status") == "warn")
-    error = sum(1 for s in sigs if s.get("status") == "error")
     rows.append(
         {
             "repo": r["repo"],
             "source_repo": r.get("source_repo", ""),
             "datasets": r.get("datasets", 0),
             "marts": r.get("marts", 0),
-            "signals": r.get("signals", 0),
+            "checks": r.get("checks", 0),
             "gcs": r.get("gcs", 0),
-            "ok": ok,
-            "warn": warn,
-            "error": error,
             "updated_at": r.get("updated_at", ""),
         }
     )
@@ -67,11 +60,8 @@ if not df.empty:
             "source_repo": st.column_config.TextColumn("Source repo", width="medium"),
             "datasets": st.column_config.NumberColumn("Dataset", format="%d"),
             "marts": st.column_config.NumberColumn("Mart", format="%d"),
-            "signals": st.column_config.NumberColumn("Segnali", format="%d"),
+            "checks": st.column_config.NumberColumn("Check", format="%d"),
             "gcs": st.column_config.NumberColumn("GCS", format="%d"),
-            "ok": st.column_config.NumberColumn("✅", format="%d"),
-            "warn": st.column_config.NumberColumn("⚠️", format="%d"),
-            "error": st.column_config.NumberColumn("❌", format="%d"),
             "updated_at": st.column_config.TextColumn("Aggiornato", width="small"),
         },
         hide_index=True,
