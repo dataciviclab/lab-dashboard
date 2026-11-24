@@ -37,7 +37,6 @@ def _build_registry_from_acb() -> Registry:
                 source=ds.get("source", ""),
                 source_id=ds.get("source_id", ""),
                 period=ds.get("period", {}),
-                stage=ds.get("stage", ""),
                 columns=columns,
                 location=location,
             )

@@ -47,7 +47,8 @@ _MOCK_TOPIC_INDEX = {
                 "slug": "ade_cinque_per_mille",
                 "name": "5x1000",
                 "period": {"start": 2023, "end": 2025},
-                "stage": "published",
+                "published": True,
+                "last_run": {"at": "2026-11-01T00:00:00Z", "year": 2025, "status": "SUCCESS"},
             },
         ],
         "ANAC": [
@@ -55,16 +56,27 @@ _MOCK_TOPIC_INDEX = {
                 "slug": "anac_bandi_gara",
                 "name": "Bandi gara",
                 "period": {"start": 2015, "end": 2024},
-                "stage": "published",
+                "published": True,
+                "last_run": {"at": "2026-11-02T00:00:00Z", "year": 2024, "status": "SUCCESS"},
             },
             {
                 "slug": "anac_smartcig",
                 "name": "SmartCIG",
                 "period": {"start": 2020, "end": 2024},
-                "stage": "incubating",
+                "published": False,
+                "last_run": {"at": "2026-11-03T00:00:00Z", "year": 2024, "status": "SUCCESS"},
             },
         ],
     },
+    "checks": [
+        {
+            "repo": "appalti-pubblici",
+            "id": "anac_smartcig",
+            "status": "warn",
+            "detail": "nessun mart",
+            "action": "aggiungere mart SQL per completare il dataset",
+        }
+    ],
     "explorer_themes": [
         {
             "slug": "finanza-pubblica",
@@ -277,19 +289,28 @@ class TestLoadCatalog:
 
 @pytest.mark.contract
 class TestLoadSignals:
-    """Contratto: load_signals() produce {signals: [...]} da workspace_triage."""
+    """Contratto: load_signals() deriva lo stato per dataset dal topic_index."""
 
-    def test_builds_signals_from_registry_summary(self):
-        with patch("sources._fetch_json", return_value=_MOCK_WORKSPACE_TRIAGE):
+    @staticmethod
+    def _fetch(url):
+        return _MOCK_TOPIC_INDEX if url.endswith("topic_index.json") else _MOCK_WORKSPACE_TRIAGE
+
+    def test_builds_signals_from_topic_index(self):
+        with patch("sources._fetch_json", side_effect=self._fetch):
             result = load_signals()
         signals = result["signals"]
-        assert len(signals) == 2  # 2 signals_detail from dataset-incubator
-        ids = {s["id"] for s in signals}
-        assert "aci_prime" in ids
-        assert "ispra_ru" in ids
+        assert len(signals) == 3  # una voce per dataset del topic_index
+        by_id = {s["id"]: s for s in signals}
+        assert by_id["anac_bandi_gara"]["status"] == "ok"
+        # il check aperto diventa lo stato del dataset
+        assert by_id["anac_smartcig"]["status"] == "warn"
+        assert by_id["anac_smartcig"]["detail"] == "nessun mart"
+        # la freschezza viene da last_run
+        assert by_id["anac_bandi_gara"]["run"]["year"] == 2024
+        assert by_id["anac_bandi_gara"]["run"]["started_at"] == "2026-11-02T00:00:00Z"
 
     def test_includes_pipeline_state(self):
-        with patch("sources._fetch_json", return_value=_MOCK_WORKSPACE_TRIAGE):
+        with patch("sources._fetch_json", side_effect=self._fetch):
             result = load_signals()
         assert "pipeline_state" in result
         assert result["pipeline_state"]["summary"]["total"] == 100

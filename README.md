@@ -26,7 +26,7 @@ streamlit run app.py
 | Pagina | Fonte | Cosa mostra |
 |---|---|---|
 | **Vista d'insieme** | ACB | KPI radar, dataset, pipeline, PR/issues/discussions, alert Lab |
-| **Catalogo** | ACB | Filtri per fonte/stage/categoria, tabella compatta, copertura anni, verifica parquet |
+| **Catalogo** | ACB | Filtri per fonte/pubblicazione/categoria, tabella compatta, copertura anni, verifica parquet |
 | **Analisi** | ACB | Analisi pubblicate collegate ai dataset (con link Explorer) |
 | **Registry / Repo** | ACB | Stato registry per repo + temi operativi (pipeline/governance/infrastructure) |
 | **Radar** | ACB + SO | 36 fonti, trend storico, attenzioni operative |

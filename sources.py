@@ -104,17 +104,42 @@ def load_catalog() -> dict[str, Any]:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_signals() -> dict[str, Any]:
-    """Segnali pipeline — da registry_summary.signals_detail."""
-    triage = load_workspace_triage()
+    """Stato pipeline per dataset — da topic_index (registry v2).
+
+    Una voce per dataset: `status` = check aperto (warn/error) se esiste,
+    altrimenti `ok`; `run` = `last_run` (ultima esecuzione reale). La lista è
+    derivata qui, non nel registry: il file non porta più una riga "ok" per
+    ogni dataset (era il 16% senza informazione).
+    """
+    topic_index = load_topic_index()
+    checks = {c.get("id"): c for c in topic_index.get("checks") or [] if isinstance(c, dict)}
     signals = []
-    for repo_info in triage.get("registry_summary", []):
-        for sig in repo_info.get("signals_detail", []):
-            entry = dict(sig)
-            if "run" not in entry or entry["run"] is None:
-                entry["run"] = {}
-            signals.append(entry)
+    for entries in (topic_index.get("datasets") or {}).values():
+        for ds in entries or []:
+            slug = ds.get("slug")
+            if not slug:
+                continue
+            check = checks.get(slug) or {}
+            run = ds.get("last_run") or {}
+            signals.append(
+                {
+                    "id": slug,
+                    "label": slug,
+                    "status": check.get("status", "ok"),
+                    "detail": check.get("detail", ""),
+                    "action": check.get("action", ""),
+                    "run": {
+                        "year": run.get("year"),
+                        "started_at": run.get("at"),
+                        "status": run.get("status"),
+                    }
+                    if run
+                    else {},
+                }
+            )
+    triage = load_workspace_triage()
     return {
-        "schema_version": "2",
+        "schema_version": "3",
         "signals": signals,
         "pipeline_state": triage.get("pipeline_state", {}),
     }

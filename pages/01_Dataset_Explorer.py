@@ -18,7 +18,7 @@ if not datasets:
 
 # ── KPI ─────────────────────────────────────────────────────────
 n_total = len(datasets)
-n_published = sum(1 for d in datasets if d.get("stage") == "published")
+n_published = sum(1 for d in datasets if d.get("published"))
 n_incubating = n_total - n_published
 by_source = {}
 for d in datasets:
@@ -41,7 +41,7 @@ st.subheader("Filtri")
 
 source_options = sorted(by_source.keys(), key=lambda s: -by_source[s])
 source_counts = {s: by_source[s] for s in source_options}
-stage_options = ["Tutti", "published", "incubating"]
+published_options = ["Tutti", "pubblicati", "non pubblicati"]
 cat_options = ["Tutti"] + sorted(categories)
 
 col_f1, col_f2, col_f3 = st.columns(3)
@@ -52,7 +52,7 @@ with col_f1:
         key="cat_src",
     )
 with col_f2:
-    stage_filter = st.selectbox("Stage", stage_options, key="cat_stage")
+    published_filter = st.selectbox("Pubblicazione", published_options, key="cat_published")
 with col_f3:
     cat_filter = st.selectbox("Categoria", cat_options, key="cat_cat")
 
@@ -63,8 +63,10 @@ filtered = datasets
 if src_filter != "Tutti":
     src_id = src_filter.split(" (")[0]
     filtered = [d for d in filtered if (d.get("source_id") or d.get("source")) == src_id]
-if stage_filter != "Tutti":
-    filtered = [d for d in filtered if d.get("stage") == stage_filter]
+if published_filter == "pubblicati":
+    filtered = [d for d in filtered if d.get("published")]
+elif published_filter == "non pubblicati":
+    filtered = [d for d in filtered if not d.get("published")]
 if cat_filter != "Tutti":
     filtered = [d for d in filtered if d.get("category") == cat_filter]
 if search:
@@ -88,13 +90,12 @@ for ds in filtered:
     yrs = f"{start}–{end}" if start != "?" else "?"
     tags = ds.get("tags", [])
     n_cols = len(ds.get("columns", []))
-    stage_icon = "✅" if ds.get("stage") == "published" else "🔬"
     rows.append(
         {
             "slug": ds.get("slug", ""),
             "nome": ds.get("name", "")[:50],
             "fonte": ds.get("source_id") or ds.get("source", "?"),
-            "stage": f"{stage_icon} {ds.get('stage', '?')}",
+            "pubblicazione": "pubblicato" if ds.get("published") else "in incubazione",
             "anni": yrs,
             "tags": ", ".join(tags[:3]),
             "schema": f"{n_cols} colonne" if n_cols else "—",
@@ -109,7 +110,7 @@ if rows:
             "slug": st.column_config.TextColumn("Slug", width="medium"),
             "nome": st.column_config.TextColumn("Nome", width="medium"),
             "fonte": st.column_config.TextColumn("Fonte", width="small"),
-            "stage": st.column_config.TextColumn("Stage", width="small"),
+            "pubblicazione": st.column_config.TextColumn("Pubblicazione", width="small"),
             "anni": st.column_config.TextColumn("Anni", width="small"),
             "tags": st.column_config.TextColumn("Tags", width="small"),
             "schema": st.column_config.TextColumn("Schema", width="small"),
@@ -129,7 +130,9 @@ if rows:
             st.write(f"**Fonte:** {ds.get('source_id') or ds.get('source', '?')}")
             period = ds.get("period", {})
             st.write(f"**Anni:** {period.get('start', '?')}–{period.get('end', '?')}")
-            st.write(f"**Stage:** {ds.get('stage', '?')}")
+            st.write(
+                f"**Pubblicazione:** {'sì (pagina Explorer)' if ds.get('published') else 'no'}"
+            )
             if loc.get("path"):
                 st.write(f"**GCS:** `{loc['path']}`")
             if cols:
@@ -160,17 +163,17 @@ for ds in datasets:
     period = ds.get("period", {})
     start = period.get("start")
     end = period.get("end")
-    stage = ds.get("stage", "?")
+    published = "pubblicato" if ds.get("published") else "incubazione"
     if start and end:
         for y in range(start, end + 1):
-            year_rows.append({"dataset": slug, "stage": stage, "anno": str(y)})
+            year_rows.append({"dataset": slug, "pubblicazione": published, "anno": str(y)})
 
 if year_rows:
     cov_df = pd.DataFrame(year_rows)
     col_mat, col_chart = st.columns([1.5, 1])
     with col_mat:
         pivot = cov_df.pivot_table(
-            index="dataset", columns="anno", values="stage", aggfunc="first"
+            index="dataset", columns="anno", values="pubblicazione", aggfunc="first"
         ).fillna("")
         pivot = pivot[sorted(pivot.columns, reverse=True)]
         st.dataframe(pivot, width="stretch", height=320)

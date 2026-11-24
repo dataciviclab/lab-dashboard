@@ -33,7 +33,7 @@ discussions = triage.get("discussions", [])
 
 # Conteggi
 tot = len(datasets)
-published = sum(1 for d in datasets if d.get("stage") == "published")
+published = sum(1 for d in datasets if d.get("published"))
 incubating = tot - published
 n_green = status_counts.get("GREEN", 0)
 n_yellow = status_counts.get("YELLOW", 0)
@@ -174,10 +174,10 @@ if not chart_df.empty:
 st.write(f"**{len(by_source)} fonti** · {tot} dataset totali")
 table_rows = []
 for s, ds in top:
-    pub = sum(1 for d in ds if d.get("stage") == "published")
-    inc = sum(1 for d in ds if d.get("stage") == "incubating")
-    stage_str = "+".join(filter(None, [f"{pub}pub" if pub else "", f"{inc}inc" if inc else ""]))
-    table_rows.append({"fonte": s, "n": len(ds), "stage": stage_str})
+    pub = sum(1 for d in ds if d.get("published"))
+    inc = len(ds) - pub
+    pub_str = "+".join(filter(None, [f"{pub}pub" if pub else "", f"{inc}inc" if inc else ""]))
+    table_rows.append({"fonte": s, "n": len(ds), "pubblicazione": pub_str})
 
 if table_rows:
     df_table = pd.DataFrame(table_rows)
@@ -186,7 +186,7 @@ if table_rows:
         column_config={
             "fonte": "Fonte",
             "n": st.column_config.NumberColumn("Dataset", format="%d"),
-            "stage": "Stage",
+            "pubblicazione": "Pubblicazione",
         },
         hide_index=True,
         width="stretch",
