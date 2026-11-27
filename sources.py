@@ -13,6 +13,7 @@ I path GCS seguono il path contract canonico definito in:
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,6 +25,11 @@ from lab_connectors.gcs.paths import CLEAN_BUCKET, https_url
 from lab_connectors.registry import to_url_slug
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+# Identità nei usage log GCS: senza, le letture della dashboard risultano
+# `duckdb/vX python/3.12`, indistinguibili da build, MCP o script.
+# Va impostata prima di qualunque connessione (le connessioni sono lazy).
+os.environ.setdefault("DCL_CLIENT_NAME", "dcl-lab-dashboard/0.1.0")
 
 LOGO_URL = "https://raw.githubusercontent.com/dataciviclab/lab-dashboard/main/static/logo.jpg"
 
